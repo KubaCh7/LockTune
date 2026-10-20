@@ -42,10 +42,10 @@ struct LyricLine: Identifiable, Equatable {
                 starts.append(last)
             }
         } else {
-            // People sing ~13 characters per second; don't stretch a short line
+            // People sing ~16 characters per second; don't stretch a short line
             // across a long pause before the next one.
             let characters = Double(words.reduce(0) { $0 + max($1.text.count, 2) })
-            let sung = max(0.4, min(end - time, characters / 13 + 0.5))
+            let sung = max(0.4, min((end - time) * 0.85, characters / 16 + 0.3))
             var cursor = time
             for word in words {
                 starts.append(cursor)

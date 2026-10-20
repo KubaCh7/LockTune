@@ -251,6 +251,16 @@ private struct AppearanceSettings: View {
                     Text("Default sits just above your name and password field. Use Preview Widget to check.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Artwork size: \(Int((settings.artworkScale * 100).rounded())) %")
+                    Slider(value: $settings.artworkScale, in: 0.6...1.6, step: 0.05) {
+                        EmptyView()
+                    } minimumValueLabel: {
+                        Image(systemName: "photo").font(.caption)
+                    } maximumValueLabel: {
+                        Image(systemName: "photo").font(.title3)
+                    }
+                }
                 Toggle("Artwork wallpaper behind the widget", isOn: $settings.lockWallpaper)
                 Picker("Wallpaper style", selection: $settings.backgroundStyle) {
                     ForEach(BackgroundStyle.allCases) { Text($0.title).tag($0) }
@@ -280,9 +290,22 @@ private struct AppearanceSettings: View {
                 Picker("Lyrics position", selection: $settings.lyricsPosition) {
                     ForEach(LyricsPosition.allCases) { Text($0.title).tag($0) }
                 }
-                Toggle("Highlight word by word (like Apple Music)", isOn: $settings.wordByWord)
-                Text("Uses per-word timing when the lyrics have it; otherwise the timing within a line is estimated.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Picker("Highlight", selection: $settings.wordByWord) {
+                    Text("Whole line (like before)").tag(false)
+                    Text("Word by word (like Apple Music)").tag(true)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Lyrics timing: \(String(format: "%.1f", settings.lyricsLead)) s ahead")
+                    Slider(value: $settings.lyricsLead, in: 0...1.5, step: 0.1) {
+                        EmptyView()
+                    } minimumValueLabel: {
+                        Text("On time").font(.caption)
+                    } maximumValueLabel: {
+                        Text("Earlier").font(.caption)
+                    }
+                    Text("If lyrics feel late, move this towards Earlier. Word timing is estimated when the lyrics only have line times.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Button("Clear Lyrics Cache") { coordinator.lyrics.clearCache() }
             }
         }

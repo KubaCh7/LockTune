@@ -97,6 +97,8 @@ final class AppSettings: ObservableObject {
         static let widgetBottomInset = "widgetBottomInset"
         static let keepDisplayAwake = "keepDisplayAwake"
         static let wordByWord = "wordByWord"
+        static let artworkScale = "artworkScale"
+        static let lyricsLead = "lyricsLead"
         static let lyricsEnabled = "lyricsEnabled"
         static let preferredSource = "preferredSource"
         static let allDisplays = "allDisplays"
@@ -125,6 +127,10 @@ final class AppSettings: ObservableObject {
     @Published var keepDisplayAwake: Bool { didSet { defaults.set(keepDisplayAwake, forKey: Key.keepDisplayAwake) } }
     /// Apple Music-style word-by-word highlight of the current lyric line.
     @Published var wordByWord: Bool { didSet { defaults.set(wordByWord, forKey: Key.wordByWord) } }
+    /// Artwork size multiplier on the lock screen (0.6 … 1.6).
+    @Published var artworkScale: Double { didSet { defaults.set(artworkScale, forKey: Key.artworkScale) } }
+    /// How many seconds early lyrics are highlighted (0 … 1.5).
+    @Published var lyricsLead: Double { didSet { defaults.set(lyricsLead, forKey: Key.lyricsLead) } }
     @Published var lyricsEnabled: Bool { didSet { defaults.set(lyricsEnabled, forKey: Key.lyricsEnabled) } }
     @Published var preferredSource: PreferredSource { didSet { defaults.set(preferredSource.rawValue, forKey: Key.preferredSource) } }
     @Published var allDisplays: Bool { didSet { defaults.set(allDisplays, forKey: Key.allDisplays) } }
@@ -141,6 +147,8 @@ final class AppSettings: ObservableObject {
             Key.widgetBottomInset: 0.25,
             Key.keepDisplayAwake: true,
             Key.wordByWord: true,
+            Key.artworkScale: 1.0,
+            Key.lyricsLead: 0.6,
             Key.allDisplays: true,
         ])
 
@@ -158,6 +166,8 @@ final class AppSettings: ObservableObject {
         widgetBottomInset = min(max(defaults.double(forKey: Key.widgetBottomInset), 0.05), 0.6)
         keepDisplayAwake = defaults.bool(forKey: Key.keepDisplayAwake)
         wordByWord = defaults.bool(forKey: Key.wordByWord)
+        artworkScale = min(max(defaults.double(forKey: Key.artworkScale), 0.6), 1.6)
+        lyricsLead = min(max(defaults.double(forKey: Key.lyricsLead), 0), 1.5)
         lyricsEnabled = defaults.bool(forKey: Key.lyricsEnabled)
         preferredSource = defaults.string(forKey: Key.preferredSource).flatMap(PreferredSource.init(rawValue:)) ?? .automatic
         allDisplays = defaults.bool(forKey: Key.allDisplays)

@@ -115,6 +115,9 @@ struct LockWidgetView: View {
     @ViewBuilder
     private func content(size: CGSize) -> some View {
         let area = widgetArea(size)
+        // Over the normal lock screen, keep lyrics well clear of the user name
+        // and the "Touch ID or Enter Password" hint below the widget.
+        let lyricsGuard: CGFloat = showsLyrics && !drawsBackground ? size.height * 0.1 : 0
         Group {
             if player.hasTrack {
                 if showsLyrics {
@@ -124,14 +127,15 @@ struct LockWidgetView: View {
                 }
             }
         }
-        .frame(width: size.width, height: area.height, alignment: .bottom)
+        .frame(width: size.width, height: area.height - lyricsGuard, alignment: .bottom)
         .offset(y: area.top)
         .shadow(color: drawsBackground ? .clear : .black.opacity(0.35), radius: 18, y: 6)
     }
 
     private func playerLayout(size: CGSize, height: CGFloat) -> some View {
         let controlsHeight: CGFloat = 150
-        let art = max(110, min(height - controlsHeight - 24, size.width * 0.24))
+        let wanted = min(height - controlsHeight - 24, size.width * 0.24) * settings.artworkScale
+        let art = max(90, min(wanted, height - controlsHeight - 24, size.width * 0.4))
         return VStack(spacing: 20) {
             artwork(side: art)
             controls(width: max(art * 0.95, 300))
@@ -143,7 +147,8 @@ struct LockWidgetView: View {
     private func lyricsLayout(size: CGSize, height: CGFloat) -> some View {
         switch settings.lyricsPosition {
         case .right, .left:
-            let art = max(110, min(height * 0.45, size.width * 0.2))
+            let art = max(90, min(min(height * 0.45, size.width * 0.2) * settings.artworkScale,
+                                  height - 170, size.width * 0.3))
             let column = VStack(spacing: 18) {
                 artwork(side: art)
                 controls(width: max(art, 300))
@@ -172,7 +177,7 @@ struct LockWidgetView: View {
                     .frame(maxHeight: .infinity)
                     .transition(.opacity)
                 HStack(spacing: 16) {
-                    artwork(side: 76)
+                    artwork(side: 76 * settings.artworkScale)
                     controls(width: 340)
                 }
             }
@@ -182,7 +187,7 @@ struct LockWidgetView: View {
 
     private func lyricsView(alignment: LyricsAlignment) -> some View {
         LyricsView(lyrics: lyrics, player: player, overlay: overlay,
-                   alignment: alignment, wordByWord: settings.wordByWord)
+                   alignment: alignment, wordByWord: settings.wordByWord, lead: settings.lyricsLead)
             .shadow(color: drawsBackground ? .clear : .black.opacity(0.45), radius: 10)
     }
 

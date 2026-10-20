@@ -16,12 +16,14 @@ struct LyricsView: View {
     @ObservedObject var overlay: OverlayState
     var alignment: LyricsAlignment = .leading
     var wordByWord = true
+    /// Seconds the highlight runs ahead of the playback position.
+    var lead: TimeInterval = 0.6
 
     var body: some View {
         switch lyrics.state {
         case .loaded(.synced(let lines)):
             SyncedLyricsView(lines: lines, revision: lyrics.revision, player: player, overlay: overlay,
-                             alignment: alignment, wordByWord: wordByWord)
+                             alignment: alignment, wordByWord: wordByWord, lead: lead)
         case .loaded(.plain(let lines)):
             PlainLyricsView(lines: lines, alignment: alignment)
         case .loaded(.instrumental):
@@ -55,9 +57,8 @@ private struct SyncedLyricsView: View {
     @ObservedObject var overlay: OverlayState
     let alignment: LyricsAlignment
     let wordByWord: Bool
-
-    /// Lines are highlighted slightly early, as Apple Music does.
-    private let lead: TimeInterval = 0.25
+    /// Lines are highlighted slightly early, as Apple Music does (adjustable).
+    let lead: TimeInterval
 
     var body: some View {
         // `player` is observed, so a seek while paused (which bumps
@@ -148,6 +149,7 @@ private struct LyricsStack: View {
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+            .clipped()
             .onPreferenceChange(LineHeightKey.self) { heights = $0 }
             .mask(
                 LinearGradient(stops: [
