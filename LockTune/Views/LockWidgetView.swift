@@ -108,7 +108,7 @@ struct LockWidgetView: View {
 
     private func widgetArea(_ size: CGSize) -> Area {
         let top = size.height * 0.24
-        let bottom = size.height * (1 - settings.widgetBottomInset)
+        let bottom = size.height * (1 - settings.activeBottomInset)
         return Area(top: top, height: max(bottom - top, size.height * 0.22))
     }
 
@@ -117,7 +117,7 @@ struct LockWidgetView: View {
         let area = widgetArea(size)
         // Over the normal lock screen, keep lyrics well clear of the user name
         // and the "Touch ID or Enter Password" hint below the widget.
-        let lyricsGuard: CGFloat = showsLyrics && !drawsBackground ? size.height * 0.14 : 0
+        let lyricsGuard: CGFloat = showsLyrics && !settings.lockWallpaper ? size.height * 0.06 : 0
         let height = area.height - lyricsGuard
         Group {
             if player.hasTrack {
@@ -135,7 +135,7 @@ struct LockWidgetView: View {
 
     private func playerLayout(size: CGSize, height: CGFloat) -> some View {
         let controlsHeight: CGFloat = 150
-        let wanted = min(height - controlsHeight - 24, size.width * 0.24) * settings.artworkScale
+        let wanted = min(height - controlsHeight - 24, size.width * 0.24) * settings.activeArtworkScale
         let art = max(90, min(wanted, height - controlsHeight - 24, size.width * 0.4))
         return VStack(spacing: 20) {
             artwork(side: art)
@@ -148,7 +148,7 @@ struct LockWidgetView: View {
     private func lyricsLayout(size: CGSize, height: CGFloat) -> some View {
         switch settings.lyricsPosition {
         case .right, .left:
-            let art = max(90, min(min(height * 0.45, size.width * 0.2) * settings.artworkScale,
+            let art = max(90, min(min(height * 0.45, size.width * 0.2) * settings.activeArtworkScale,
                                   height - 170, size.width * 0.3))
             let column = VStack(spacing: 18) {
                 artwork(side: art)
@@ -178,7 +178,7 @@ struct LockWidgetView: View {
                     .frame(maxHeight: .infinity)
                     .transition(.opacity)
                 HStack(spacing: 16) {
-                    artwork(side: 76 * settings.artworkScale)
+                    artwork(side: 76 * settings.activeArtworkScale)
                     controls(width: 340)
                 }
             }

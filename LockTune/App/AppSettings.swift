@@ -99,6 +99,8 @@ final class AppSettings: ObservableObject {
         static let awakeDurationIndex = "awakeDurationIndex"
         static let wordByWord = "wordByWord"
         static let artworkScale = "artworkScale"
+        static let plainBottomInset = "plainBottomInset"
+        static let plainArtworkScale = "plainArtworkScale"
         static let lyricsLead = "lyricsLead"
         static let lyricsEnabled = "lyricsEnabled"
         static let preferredSource = "preferredSource"
@@ -141,8 +143,21 @@ final class AppSettings: ObservableObject {
     }
     /// Apple Music-style word-by-word highlight of the current lyric line.
     @Published var wordByWord: Bool { didSet { defaults.set(wordByWord, forKey: Key.wordByWord) } }
-    /// Artwork size multiplier on the lock screen (0.6 … 1.6).
+    /// Artwork size multiplier with the artwork wallpaper on (0.6 … 1.6).
     @Published var artworkScale: Double { didSet { defaults.set(artworkScale, forKey: Key.artworkScale) } }
+    /// Same two settings for the plain (transparent) mode over the normal lock screen.
+    @Published var plainBottomInset: Double { didSet { defaults.set(plainBottomInset, forKey: Key.plainBottomInset) } }
+    @Published var plainArtworkScale: Double { didSet { defaults.set(plainArtworkScale, forKey: Key.plainArtworkScale) } }
+
+    /// Over the normal lock screen the widget must stay above the user name
+    /// and the "Touch ID or Enter Password" hint (they sit around 75–85 % down).
+    static let minPlainBottomInset = 0.27
+
+    /// Layout values for the current mode.
+    var activeBottomInset: Double {
+        lockWallpaper ? widgetBottomInset : max(plainBottomInset, Self.minPlainBottomInset)
+    }
+    var activeArtworkScale: Double { lockWallpaper ? artworkScale : plainArtworkScale }
     /// How many seconds early lyrics are highlighted (0 … 1.5).
     @Published var lyricsLead: Double { didSet { defaults.set(lyricsLead, forKey: Key.lyricsLead) } }
     @Published var lyricsEnabled: Bool { didSet { defaults.set(lyricsEnabled, forKey: Key.lyricsEnabled) } }
@@ -156,13 +171,15 @@ final class AppSettings: ObservableObject {
             Key.idleEnabled: false,
             Key.idleMinutes: 5,
             Key.lockWidgetEnabled: true,
-            Key.lockWallpaper: false,
+            Key.lockWallpaper: true,
             Key.lyricsEnabled: true,
-            Key.widgetBottomInset: 0.25,
+            Key.widgetBottomInset: 0.12,
+            Key.plainBottomInset: 0.29,
+            Key.plainArtworkScale: 1.0,
             Key.keepDisplayAwake: true,
             Key.awakeDurationIndex: 9,
             Key.wordByWord: true,
-            Key.artworkScale: 1.0,
+            Key.artworkScale: 1.6,
             Key.lyricsLead: 0.6,
             Key.allDisplays: true,
         ])
@@ -183,6 +200,8 @@ final class AppSettings: ObservableObject {
         awakeDurationIndex = min(max(defaults.integer(forKey: Key.awakeDurationIndex), 0), Self.awakeDurations.count - 1)
         wordByWord = defaults.bool(forKey: Key.wordByWord)
         artworkScale = min(max(defaults.double(forKey: Key.artworkScale), 0.6), 1.6)
+        plainBottomInset = min(max(defaults.double(forKey: Key.plainBottomInset), Self.minPlainBottomInset), 0.6)
+        plainArtworkScale = min(max(defaults.double(forKey: Key.plainArtworkScale), 0.6), 1.6)
         lyricsLead = min(max(defaults.double(forKey: Key.lyricsLead), 0), 1.5)
         lyricsEnabled = defaults.bool(forKey: Key.lyricsEnabled)
         preferredSource = defaults.string(forKey: Key.preferredSource).flatMap(PreferredSource.init(rawValue:)) ?? .automatic

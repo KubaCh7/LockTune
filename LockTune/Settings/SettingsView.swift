@@ -276,40 +276,69 @@ private struct AppearanceSettings: View {
     @ObservedObject var coordinator: AppCoordinator
     @ObservedObject var settings: AppSettings
 
+    private func heightSlider(_ value: Binding<Double>, range: ClosedRange<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Height on the lock screen")
+            Slider(value: value, in: range) {
+                EmptyView()
+            } minimumValueLabel: {
+                Text("Higher").font(.caption)
+            } maximumValueLabel: {
+                Text("Lower").font(.caption)
+            }
+        }
+    }
+
+    private func sizeSlider(_ value: Binding<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Artwork size: \(Int((value.wrappedValue * 100).rounded())) %")
+            Slider(value: value, in: 0.6...1.6, step: 0.05) {
+                EmptyView()
+            } minimumValueLabel: {
+                Image(systemName: "photo").font(.caption)
+            } maximumValueLabel: {
+                Image(systemName: "photo").font(.title3)
+            }
+        }
+    }
+
     var body: some View {
         Form {
             Section("Widget") {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Height on the lock screen")
-                    Slider(value: Binding(get: { 1 - settings.widgetBottomInset },
-                                          set: { settings.widgetBottomInset = 1 - $0 }),
-                           in: 0.4...0.95) {
-                        EmptyView()
-                    } minimumValueLabel: {
-                        Text("Higher").font(.caption)
-                    } maximumValueLabel: {
-                        Text("Lower").font(.caption)
-                    }
-                    Text("Default sits just above your name and password field. Use Preview Widget to check.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Artwork size: \(Int((settings.artworkScale * 100).rounded())) %")
-                    Slider(value: $settings.artworkScale, in: 0.6...1.6, step: 0.05) {
-                        EmptyView()
-                    } minimumValueLabel: {
-                        Image(systemName: "photo").font(.caption)
-                    } maximumValueLabel: {
-                        Image(systemName: "photo").font(.title3)
-                    }
-                }
                 Toggle("Artwork wallpaper behind the widget", isOn: $settings.lockWallpaper)
                 Picker("Wallpaper style", selection: $settings.backgroundStyle) {
                     ForEach(BackgroundStyle.allCases) { Text($0.title).tag($0) }
                 }
                 .disabled(!settings.lockWallpaper)
-                Text("Off: only the album art, controls and lyrics float over your normal lock screen. On: the screen is filled with the artwork, like in the reference video.")
+                Text("On: the screen is filled with the artwork, like in the reference video. Off: only the album art, controls and lyrics float over your normal lock screen. Each mode keeps its own height and artwork size below.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section("With artwork wallpaper") {
+                heightSlider(Binding(get: { 1 - settings.widgetBottomInset },
+                                     set: { settings.widgetBottomInset = 1 - $0 }),
+                             range: 0.4...0.95)
+                sizeSlider($settings.artworkScale)
+            }
+            .opacity(settings.lockWallpaper ? 1 : 0.6)
+
+            Section("Without wallpaper (normal lock screen)") {
+                heightSlider(Binding(get: { 1 - settings.plainBottomInset },
+                                     set: { settings.plainBottomInset = 1 - $0 }),
+                             range: 0.4...(1 - AppSettings.minPlainBottomInset))
+                sizeSlider($settings.plainArtworkScale)
+                Text("The lowest position still keeps the widget above your name and “Touch ID or Enter Password”.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .opacity(settings.lockWallpaper ? 0.6 : 1)
+
+            Section {
+                Button("Reset Layout to Defaults") {
+                    settings.widgetBottomInset = 0.12
+                    settings.artworkScale = 1.6
+                    settings.plainBottomInset = 0.29
+                    settings.plainArtworkScale = 1.0
+                }
             }
 
             Section("Clock (wallpaper mode & preview)") {
