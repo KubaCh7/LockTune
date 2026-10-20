@@ -5,6 +5,11 @@ import SwiftUI
 struct LockTuneApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+    init() {
+        // CI runs `LockTune --self-test`; this exits before any UI starts.
+        SelfTest.runIfRequested()
+    }
+
     var body: some Scene {
         MenuBarExtra {
             MenuBarMenu(coordinator: AppCoordinator.shared,

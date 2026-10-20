@@ -24,10 +24,12 @@
 		6756C348FDE005665DED7656 /* LockWidgetController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9FACD185996A21F484F43E0 /* LockWidgetController.swift */; };
 		D518E475A13F093B5340D366 /* OverlayState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F247E63AEA72702D4CFAB090 /* OverlayState.swift */; };
 		38103306B8EE7254948254EA /* ScreenLocker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A6C34C60788BC4FAAA77046 /* ScreenLocker.swift */; };
+		3EA8E41892AFD81D6DA501A5 /* SkyLightLockScreenLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C2A2FF6C53A681671C4FEEC /* SkyLightLockScreenLayer.swift */; };
 		89680AB20F8FE6A257BB5206 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2D0ECC818F0BCB4FB9570B41 /* Assets.xcassets */; };
 		325012A7C4C4ACA7E942C9F9 /* HotkeyRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F489E21C05AC7C5172337B8 /* HotkeyRecorderView.swift */; };
 		7AA3083D1D5F2BCB1365A5E4 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB827D149D67CE7F184ADA79 /* LaunchAtLogin.swift */; };
 		C333D0C8515CA3772E24D5CD /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 302BDDAD4BC7CAD3BB6CE794 /* SettingsView.swift */; };
+		AB2B33E2E5E0C6CE705E2141 /* SelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D2C7A968CE1817FC85839F5 /* SelfTest.swift */; };
 		C9B0B76EA5843EB223BCB9FF /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F2F3FFA442E834C557A4BAD /* HotkeyManager.swift */; };
 		67FD3EDE74AB43D3DD439CA3 /* IdleMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C726A59960D3FAAA56B6CB /* IdleMonitor.swift */; };
 		DD060DB816A3001896D5828E /* LockMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5DA4A5CE23D23E1AAB0D77B /* LockMonitor.swift */; };
@@ -59,12 +61,14 @@
 		F9FACD185996A21F484F43E0 /* LockWidgetController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockWidgetController.swift; sourceTree = "<group>"; };
 		F247E63AEA72702D4CFAB090 /* OverlayState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayState.swift; sourceTree = "<group>"; };
 		1A6C34C60788BC4FAAA77046 /* ScreenLocker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenLocker.swift; sourceTree = "<group>"; };
+		7C2A2FF6C53A681671C4FEEC /* SkyLightLockScreenLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyLightLockScreenLayer.swift; sourceTree = "<group>"; };
 		2D0ECC818F0BCB4FB9570B41 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0F489E21C05AC7C5172337B8 /* HotkeyRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyRecorderView.swift; sourceTree = "<group>"; };
 		DB827D149D67CE7F184ADA79 /* LaunchAtLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLogin.swift; sourceTree = "<group>"; };
 		302BDDAD4BC7CAD3BB6CE794 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		17845468D684DA19C3560E9C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C8CA8AEE71B5B2F713C78A52 /* LockTune.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LockTune.entitlements; sourceTree = "<group>"; };
+		9D2C7A968CE1817FC85839F5 /* SelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelfTest.swift; sourceTree = "<group>"; };
 		8F2F3FFA442E834C557A4BAD /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
 		08C726A59960D3FAAA56B6CB /* IdleMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleMonitor.swift; sourceTree = "<group>"; };
 		D5DA4A5CE23D23E1AAB0D77B /* LockMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockMonitor.swift; sourceTree = "<group>"; };
@@ -129,6 +133,7 @@
 				F9FACD185996A21F484F43E0 /* LockWidgetController.swift */,
 				F247E63AEA72702D4CFAB090 /* OverlayState.swift */,
 				1A6C34C60788BC4FAAA77046 /* ScreenLocker.swift */,
+				7C2A2FF6C53A681671C4FEEC /* SkyLightLockScreenLayer.swift */,
 			);
 			path = Overlay;
 			sourceTree = "<group>";
@@ -156,6 +161,7 @@
 			children = (
 				17845468D684DA19C3560E9C /* Info.plist */,
 				C8CA8AEE71B5B2F713C78A52 /* LockTune.entitlements */,
+				9D2C7A968CE1817FC85839F5 /* SelfTest.swift */,
 			);
 			path = Support;
 			sourceTree = "<group>";
@@ -302,9 +308,11 @@
 				6756C348FDE005665DED7656 /* LockWidgetController.swift in Sources */,
 				D518E475A13F093B5340D366 /* OverlayState.swift in Sources */,
 				38103306B8EE7254948254EA /* ScreenLocker.swift in Sources */,
+				3EA8E41892AFD81D6DA501A5 /* SkyLightLockScreenLayer.swift in Sources */,
 				325012A7C4C4ACA7E942C9F9 /* HotkeyRecorderView.swift in Sources */,
 				7AA3083D1D5F2BCB1365A5E4 /* LaunchAtLogin.swift in Sources */,
 				C333D0C8515CA3772E24D5CD /* SettingsView.swift in Sources */,
+				AB2B33E2E5E0C6CE705E2141 /* SelfTest.swift in Sources */,
 				C9B0B76EA5843EB223BCB9FF /* HotkeyManager.swift in Sources */,
 				67FD3EDE74AB43D3DD439CA3 /* IdleMonitor.swift in Sources */,
 				DD060DB816A3001896D5828E /* LockMonitor.swift in Sources */,

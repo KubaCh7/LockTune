@@ -59,7 +59,12 @@ private struct StatusTab: View {
                           title: "Showing on the lock screen",
                           detail: coordinator.widget.lockScreenLayer?.isAvailable == true
                               ? "Ready. Lock your Mac with music playing."
-                              : "Not available on this macOS version. The widget is shown right after you unlock.")
+                              : "This macOS doesn't offer the needed window-server functions. The widget is shown right after you unlock.")
+                StatusRow(ok: ScreenLocker.canLockDirectly,
+                          title: "Lock Screen Now",
+                          detail: ScreenLocker.canLockDirectly
+                              ? "Locks immediately, like ⌃⌘Q."
+                              : "Only turns the display off; set “Require password” to Immediately.")
 
                 HStack {
                     Button("Ask for Permission") { player.requestAutomationAccess() }
@@ -68,6 +73,25 @@ private struct StatusTab: View {
                 }
                 Text("Spotify or Music must be open for macOS to ask.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section("Diagnostics") {
+                ForEach(player.providers.map { $0.displayName }, id: \.self) { name in
+                    LabeledContent(name) {
+                        Text(player.diagnostics[name] ?? "—")
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+                HStack {
+                    Button("Refresh") { player.poll() }
+                    Button("Copy Diagnostics") {
+                        let text = diagnosticsText()
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(text, forType: .string)
+                    }
+                }
             }
 
             Section("Try it") {
@@ -83,6 +107,20 @@ private struct StatusTab: View {
         }
         .formStyle(.grouped)
         .onAppear { player.refreshAutomationStatus() }
+    }
+
+    private func diagnosticsText() -> String {
+        var lines = ["LockTune \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")",
+                     "macOS \(ProcessInfo.processInfo.operatingSystemVersionString)",
+                     "locked: \(coordinator.isScreenLocked)",
+                     "lock-screen layer: \(coordinator.widget.lockScreenLayer?.isAvailable == true)",
+                     "lock function: \(ScreenLocker.canLockDirectly)",
+                     "track: \(player.track.map { "\($0.title) — \($0.artist)" } ?? "none")"]
+        for provider in player.providers {
+            let name = provider.displayName
+            lines.append("\(name): \(player.diagnostics[name] ?? "—") · permission: \((player.automationStatus[name] ?? .notDetermined).title)")
+        }
+        return lines.joined(separator: "\n")
     }
 
     private func permissionHint(_ status: AutomationStatus, name: String, lastError: Int?) -> String {

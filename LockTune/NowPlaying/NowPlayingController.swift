@@ -23,6 +23,8 @@ final class NowPlayingController: ObservableObject {
     @Published private(set) var automationStatus: [String: AutomationStatus] = [:]
     /// Last AppleScript error per player (for the Status window).
     @Published private(set) var lastErrors: [String: Int] = [:]
+    /// Human-readable result of the last poll per player (Status → Diagnostics).
+    @Published private(set) var diagnostics: [String: String] = [:]
 
     let providers: [NowPlayingProvider]
     private let settings: AppSettings
@@ -118,11 +120,27 @@ final class NowPlayingController: ObservableObject {
         var best: (provider: NowPlayingProvider, snapshot: PlayerSnapshot, rank: Double)?
         var denied = false
 
-        for provider in providers where settings.preferredSource.allows(provider.id) && provider.isRunning {
+        var report: [String: String] = [:]
+        for provider in providers {
+            guard settings.preferredSource.allows(provider.id) else {
+                report[provider.displayName] = "ignored (Music source setting)"
+                continue
+            }
+            guard provider.isRunning else {
+                report[provider.displayName] = provider.isInstalled ? "not running" : "not installed"
+                continue
+            }
             let snapshot = provider.snapshot()
             if provider.lastErrorCode == -1743 { denied = true }
             if lastErrors[provider.displayName] != provider.lastErrorCode {
                 lastErrors[provider.displayName] = provider.lastErrorCode
+            }
+            if let snapshot {
+                report[provider.displayName] = "running · state: \(snapshot.state.rawValue) · position: "
+                    + String(format: "%.1f", snapshot.position) + " s · track: \(snapshot.trackID ?? "none")"
+            } else {
+                report[provider.displayName] = "running · script error \(provider.lastErrorCode.map { String($0) } ?? "?"): "
+                    + (provider.lastErrorMessage ?? "unknown")
             }
             guard let snapshot, snapshot.trackID != nil else { continue }
 
@@ -134,6 +152,7 @@ final class NowPlayingController: ObservableObject {
         }
 
         if automationDenied != denied { automationDenied = denied }
+        if diagnostics != report { diagnostics = report }
 
         guard let best else {
             clear()
@@ -156,6 +175,9 @@ final class NowPlayingController: ObservableObject {
                 setPosition(snapshot.position)
                 ignoreStateUntil = .distantPast
                 loadArtwork(for: info, from: provider)
+            } else {
+                diagnostics[provider.displayName, default: ""] +=
+                    " · track info error \(provider.lastErrorCode.map { String($0) } ?? "?"): \(provider.lastErrorMessage ?? "unknown")"
             }
             return
         }

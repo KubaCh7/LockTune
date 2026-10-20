@@ -15,6 +15,7 @@ class AppleScriptPlayerProvider: NowPlayingProvider {
     var tellTarget: String { "application id \"\(bundleIdentifier)\"" }
 
     var lastErrorCode: Int? { runner.lastErrorCode }
+    var lastErrorMessage: String? { runner.lastErrorMessage }
 
     init(id: String, displayName: String, bundleIdentifier: String,
          changeNotification: String?, runner: AppleScriptRunner) {
@@ -112,6 +113,16 @@ class AppleScriptPlayerProvider: NowPlayingProvider {
 
     func artwork(for track: TrackInfo) -> ArtworkSource { .none }
 
+    /// Every script this provider runs, for `--self-test` (compiled, never executed).
+    var selfTestScripts: [(name: String, source: String)] {
+        [("snapshot", snapshotScript),
+         ("track", trackScript),
+         ("playpause", "tell \(tellTarget) to playpause"),
+         ("next", "tell \(tellTarget) to next track"),
+         ("previous", "tell \(tellTarget) to \(previousCommand)"),
+         ("seek", "tell \(tellTarget) to set player position to 1.5")]
+    }
+
     // MARK: Commands
 
     private func command(_ verb: String) {
@@ -157,6 +168,10 @@ final class AppleMusicProvider: AppleScriptPlayerProvider {
     return ""
     """
 
+    override var selfTestScripts: [(name: String, source: String)] {
+        super.selfTestScripts + [("artwork", artworkScript)]
+    }
+
     override func artwork(for track: TrackInfo) -> ArtworkSource {
         // Tracks streamed from Apple Music that are not in the library often
         // expose no artwork to AppleScript; the controller then falls back to
@@ -183,9 +198,15 @@ final class SpotifyProvider: AppleScriptPlayerProvider {
     /// Spotify reports the duration in milliseconds.
     override func durationSeconds(from raw: Double) -> TimeInterval { raw / 1000 }
 
+    private var artworkURLScript: String { "tell \(tellTarget) to return artwork url of current track" }
+
+    override var selfTestScripts: [(name: String, source: String)] {
+        super.selfTestScripts + [("artwork", artworkURLScript)]
+    }
+
     override func artwork(for track: TrackInfo) -> ArtworkSource {
         guard isRunning,
-              let result = runner.run("tell \(tellTarget) to return artwork url of current track"),
+              let result = runner.run(artworkURLScript),
               let string = result.stringValue,
               let url = URL(string: string), url.scheme?.hasPrefix("http") == true
         else { return .none }

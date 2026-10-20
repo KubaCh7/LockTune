@@ -39,6 +39,16 @@ jobs:
         if: failure()
         run: grep -E "error:" -A3 build.log | head -200 || true
 
+      - name: Install Spotify (so its AppleScript dictionary can be tested)
+        run: brew install --cask spotify || echo "Spotify install failed; its checks will be skipped"
+
+      - name: Self-test on this Mac
+        run: |
+          macOS_version=$(sw_vers -productVersion)
+          echo "Runner macOS $macOS_version"
+          perl -e 'alarm 180; exec @ARGV' \
+            build/Build/Products/Release/LockTune.app/Contents/MacOS/LockTune --self-test
+
       - name: Package .dmg and .zip
         run: |
           APP=build/Build/Products/Release/LockTune.app

@@ -55,6 +55,7 @@ protocol NowPlayingProvider: AnyObject {
 
     /// AppleScript error number from the last failed call (-1743 = Automation denied).
     var lastErrorCode: Int? { get }
+    var lastErrorMessage: String? { get }
 }
 
 extension NowPlayingProvider {

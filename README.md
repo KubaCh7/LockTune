@@ -58,12 +58,21 @@ In the widget (preview, or after unlocking): **Space** play/pause · **← / →
 
 macOS has **no public API** for drawing over the lock screen. Apps that do it (lock-screen widget apps, and most likely the app in the reference video) move their window into a private *SkyLight* window-server space that sits above the lock screen.
 
-LockTune **does not ship that private-API code**. Instead it has an extension point, the `LockScreenLayer` protocol in `Overlay/LockWidgetController.swift`:
+At its owner's request, LockTune does the same in `Overlay/SkyLightLockScreenLayer.swift`. It plugs into the `LockScreenLayer` protocol in `Overlay/LockWidgetController.swift`.
 
-- **Without a layer** (this build): the widget is put up the moment you lock, but behind the system lock screen. It's the first thing you see after unlocking. Esc closes it.
-- **With a layer:** an implementation that returns `true` from `attach(_:)` makes the same widget float over the real lock screen. It's removed automatically when you unlock.
+- The widget only *draws* above the lock screen. Its panels are non-activating and never become key while locked, so the keyboard stays with the system password field and Touch ID works as usual.
+- It's removed the moment you unlock.
+- The functions are looked up at runtime. If a macOS update removes them, the Status window says so and the widget appears right after unlocking instead.
+- *Lock Screen Now* / ⌃⌘L call the same system function as Apple menu → Lock Screen.
 
-Be aware: a window above the lock screen can cover the system password field and could in principle imitate it. That's why this is a deliberate opt-in and not the default.
+### Diagnostics and self-test
+
+- **Status → Diagnostics** shows, for Spotify and Music: whether it's running, the playback state, the track ID, and the exact AppleScript error if something fails. **Copy Diagnostics** puts all of it on the clipboard.
+- CI runs `LockTune.app/Contents/MacOS/LockTune --self-test` on a real Mac before publishing a release. It checks:
+  - every AppleScript compiles against the Music and Spotify dictionaries;
+  - the LRC parser;
+  - the lock-screen functions exist;
+  - a panel can be attached to the lock-screen layer.
 
 ## Architecture
 

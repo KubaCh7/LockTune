@@ -31,6 +31,7 @@ final class AppCoordinator: ObservableObject {
         overlayState = OverlayState()
         widget = LockWidgetController(overlay: overlayState, player: nowPlaying,
                                       lyrics: lyrics, settings: settings)
+        widget.lockScreenLayer = SkyLightLockScreenLayer()
     }
 
     func start() {

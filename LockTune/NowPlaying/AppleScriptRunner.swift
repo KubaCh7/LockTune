@@ -8,6 +8,7 @@ import Foundation
 final class AppleScriptRunner {
     private var cache: [String: NSAppleScript] = [:]
     private(set) var lastErrorCode: Int?
+    private(set) var lastErrorMessage: String?
 
     /// Runs `source` and returns its result descriptor, or `nil` on error.
     /// Pass `cache: false` for one-off scripts (e.g. a seek with a literal value).
@@ -23,6 +24,7 @@ final class AppleScriptRunner {
             var compileError: NSDictionary?
             guard compiled.compileAndReturnError(&compileError) else {
                 lastErrorCode = compileError?[NSAppleScript.errorNumber] as? Int
+                lastErrorMessage = "compile: " + ((compileError?[NSAppleScript.errorMessage] as? String) ?? "?")
                 return nil
             }
             script = compiled
@@ -33,9 +35,11 @@ final class AppleScriptRunner {
         let result = script.executeAndReturnError(&error)
         if let error {
             lastErrorCode = error[NSAppleScript.errorNumber] as? Int
+            lastErrorMessage = error[NSAppleScript.errorMessage] as? String
             return nil
         }
         lastErrorCode = nil
+        lastErrorMessage = nil
         return result
     }
 }
