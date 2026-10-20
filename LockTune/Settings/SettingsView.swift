@@ -310,9 +310,14 @@ private struct AppearanceSettings: View {
     @ObservedObject var coordinator: AppCoordinator
     @ObservedObject var settings: AppSettings
 
+    /// Knob position along the slider, 0–100 % (50 % = default).
+    private func percent(_ value: Double, _ range: ClosedRange<Double>) -> Int {
+        Int(((value - range.lowerBound) / (range.upperBound - range.lowerBound) * 100).rounded())
+    }
+
     private func heightSlider(_ value: Binding<Double>, range: ClosedRange<Double>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Player height (artwork + controls)")
+            Text("Player height (artwork + controls): \(percent(value.wrappedValue, range)) %")
             Slider(value: value, in: range) {
                 EmptyView()
             } minimumValueLabel: {
@@ -336,17 +341,17 @@ private struct AppearanceSettings: View {
         }
     }
 
-    private func lyricsOffsetSlider(_ value: Binding<Double>) -> some View {
+    private func lyricsOffsetSlider(_ value: Binding<Double>, range: ClosedRange<Double>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Lyrics position")
-            Slider(value: value, in: 0...AppSettings.maxLyricsOffset) {
+            Text("Lyrics position: \(percent(value.wrappedValue, range)) %")
+            Slider(value: value, in: range) {
                 EmptyView()
             } minimumValueLabel: {
                 Text("Higher").font(.caption)
             } maximumValueLabel: {
                 Text("Lower").font(.caption)
             }
-            Text("“Higher” (default) keeps lyrics between the clock and your name; lower moves them down the screen.")
+            Text("50 % is the default. Too high can touch the clock, too low your name.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -389,9 +394,9 @@ private struct AppearanceSettings: View {
                 heightSlider(Binding(get: { 1 - settings.widgetBottomInset },
                                      set: { settings.widgetBottomInset = 1 - $0 }),
                              // Centred on the old lowest point (72 %), so it can go lower still.
-                             range: 0.48...(1 - AppSettings.minWallpaperBottomInset))
+                             range: AppSettings.playerBottomRange)
                 sizeSlider($settings.artworkScale)
-                lyricsOffsetSlider($settings.lyricsOffset)
+                lyricsOffsetSlider($settings.lyricsOffset, range: AppSettings.wallpaperLyricsRange)
             } header: {
                 modeHeader("With artwork wallpaper", inUse: settings.lockWallpaper)
             }
@@ -399,10 +404,13 @@ private struct AppearanceSettings: View {
             Section {
                 heightSlider(Binding(get: { 1 - settings.plainBottomInset },
                                      set: { settings.plainBottomInset = 1 - $0 }),
-                             range: 0.4...(1 - AppSettings.minPlainBottomInset))
+                             range: AppSettings.playerBottomRange)
                 sizeSlider($settings.plainArtworkScale)
-                lyricsOffsetSlider($settings.plainLyricsOffset)
-                Text("Here the lowest player position keeps it above your name and “Touch ID or Enter Password”. Artwork size, player height and lyrics position are independent.")
+                Label("A big change here can make the album cover reach up into the clock.",
+                      systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(.orange)
+                lyricsOffsetSlider($settings.plainLyricsOffset, range: AppSettings.plainLyricsRange)
+                Text("Below 50 % the player can reach your name and “Touch ID or Enter Password”. Artwork size, player height and lyrics position are independent.")
                     .font(.caption).foregroundStyle(.secondary)
             } header: {
                 modeHeader("Without wallpaper (normal lock screen)", inUse: !settings.lockWallpaper)
@@ -419,13 +427,13 @@ private struct AppearanceSettings: View {
 
             Section {
                 Button("Reset Layout to Defaults") {
-                    settings.widgetBottomInset = 0.28
-                    settings.artworkScale = 1.6
-                    settings.plainBottomInset = 0.30
-                    settings.plainArtworkScale = 1.0
+                    settings.widgetBottomInset = 0.253
+                    settings.artworkScale = 2.5
+                    settings.plainBottomInset = 0.28
+                    settings.plainArtworkScale = 2.0
                     settings.lyricsScale = 0.85
-                    settings.lyricsOffset = 0
-                    settings.plainLyricsOffset = 0
+                    settings.lyricsOffset = 0.184
+                    settings.plainLyricsOffset = 0.10
                 }
             }
 

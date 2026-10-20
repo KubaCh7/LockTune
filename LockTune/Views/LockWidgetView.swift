@@ -122,7 +122,7 @@ struct LockWidgetView: View {
 
     /// Top of the lyrics block: below the clock, moved down by the lyrics slider.
     private func lyricsTop(_ size: CGSize) -> CGFloat {
-        size.height * (0.26 + settings.activeLyricsOffset)
+        max(size.height * 0.01, size.height * (0.26 + settings.activeLyricsOffset))
     }
 
     private func lyricsHeight(_ size: CGSize) -> CGFloat {

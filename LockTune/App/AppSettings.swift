@@ -179,7 +179,12 @@ final class AppSettings: ObservableObject {
     /// Moves the lyrics block down (fraction of screen height, 0 … 0.4), per mode.
     @Published var lyricsOffset: Double { didSet { defaults.set(lyricsOffset, forKey: Key.lyricsOffset) } }
     @Published var plainLyricsOffset: Double { didSet { defaults.set(plainLyricsOffset, forKey: Key.plainLyricsOffset) } }
-    static let maxLyricsOffset = 0.4
+    /// Slider ranges, centred on the defaults (the owner's chosen look), so a
+    /// fresh install has every knob in the middle with room both ways.
+    static let wallpaperLyricsRange: ClosedRange<Double> = -0.18...0.55
+    static let plainLyricsRange: ClosedRange<Double> = -0.25...0.45
+    /// Bottom edge of artwork + controls, as a fraction of the screen height.
+    static let playerBottomRange: ClosedRange<Double> = 0.48...0.96
     var activeLyricsOffset: Double { lockWallpaper ? lyricsOffset : plainLyricsOffset }
 
     /// Lyrics text size multiplier (0.6 … 1.4).
@@ -189,8 +194,8 @@ final class AppSettings: ObservableObject {
     /// "Touch ID or Enter Password" (around 75–85 % down). With the artwork
     /// wallpaper the artwork may go lower; lyrics are kept above ~70 % in both
     /// modes by the layout itself.
-    static let minPlainBottomInset = 0.28
-    static let minWallpaperBottomInset = 0.04
+    static let minPlainBottomInset = 1 - playerBottomRange.upperBound
+    static let minWallpaperBottomInset = 1 - playerBottomRange.upperBound
     static let maxArtworkScale = 2.5
 
     /// Layout values for the current mode.
@@ -215,15 +220,17 @@ final class AppSettings: ObservableObject {
             Key.lockWallpaper: true,
             Key.lyricsEnabled: true,
             // Middle of the wallpaper-mode slider (what used to be its lowest point).
-            Key.widgetBottomInset: 0.28,
-            Key.plainBottomInset: 0.30,
-            Key.plainArtworkScale: 1.0,
+            Key.widgetBottomInset: 0.253,
+            Key.plainBottomInset: 0.28,
+            Key.plainArtworkScale: 2.0,
+            Key.lyricsOffset: 0.184,
+            Key.plainLyricsOffset: 0.10,
             Key.animationFPS: 60,
             Key.lyricsScale: 0.85,
             Key.keepDisplayAwake: true,
             Key.awakeDurationIndex: 9,
             Key.wordByWord: true,
-            Key.artworkScale: 1.6,
+            Key.artworkScale: 2.5,
             Key.lyricsLead: 0.6,
             Key.allDisplays: true,
         ])
@@ -245,7 +252,14 @@ final class AppSettings: ObservableObject {
         // Layout v4: wallpaper mode may go low again (lyrics have their own
         // limit); start from the new middle position.
         if layoutVersion < 4 { defaults.removeObject(forKey: Key.widgetBottomInset) }
-        defaults.set(4, forKey: Key.layoutVersion)
+        // Layout v5: new defaults with every slider centred.
+        if layoutVersion < 5 {
+            for key in [Key.widgetBottomInset, Key.plainBottomInset, Key.artworkScale, Key.plainArtworkScale,
+                        Key.lyricsOffset, Key.plainLyricsOffset] {
+                defaults.removeObject(forKey: key)
+            }
+        }
+        defaults.set(5, forKey: Key.layoutVersion)
         widgetBottomInset = min(max(defaults.double(forKey: Key.widgetBottomInset), Self.minWallpaperBottomInset), 0.6)
         keepDisplayAwake = defaults.bool(forKey: Key.keepDisplayAwake)
         awakeDurationIndex = min(max(defaults.integer(forKey: Key.awakeDurationIndex), 0), Self.awakeDurations.count - 1)
@@ -253,8 +267,8 @@ final class AppSettings: ObservableObject {
         artworkScale = min(max(defaults.double(forKey: Key.artworkScale), 0.6), Self.maxArtworkScale)
         plainBottomInset = min(max(defaults.double(forKey: Key.plainBottomInset), Self.minPlainBottomInset), 0.6)
         plainArtworkScale = min(max(defaults.double(forKey: Key.plainArtworkScale), 0.6), Self.maxArtworkScale)
-        lyricsOffset = min(max(defaults.double(forKey: Key.lyricsOffset), 0), Self.maxLyricsOffset)
-        plainLyricsOffset = min(max(defaults.double(forKey: Key.plainLyricsOffset), 0), Self.maxLyricsOffset)
+        lyricsOffset = defaults.double(forKey: Key.lyricsOffset).clamped(to: Self.wallpaperLyricsRange)
+        plainLyricsOffset = defaults.double(forKey: Key.plainLyricsOffset).clamped(to: Self.plainLyricsRange)
         glassLevel = defaults.string(forKey: Key.glassLevel).flatMap(GlassLevel.init(rawValue:)) ?? .normal
         lyricsScale = min(max(defaults.double(forKey: Key.lyricsScale), 0.6), 1.4)
         let fps = defaults.integer(forKey: Key.animationFPS)
@@ -341,10 +355,10 @@ extension AppSettings {
         if let v = p.backgroundStyle.flatMap(BackgroundStyle.init(rawValue:)) { backgroundStyle = v }
         if let v = p.widgetBottomInset { widgetBottomInset = clamp(v, Self.minWallpaperBottomInset, 0.6) }
         if let v = p.artworkScale { artworkScale = clamp(v, 0.6, Self.maxArtworkScale) }
-        if let v = p.lyricsOffset { lyricsOffset = clamp(v, 0, Self.maxLyricsOffset) }
+        if let v = p.lyricsOffset { lyricsOffset = v.clamped(to: Self.wallpaperLyricsRange) }
         if let v = p.plainBottomInset { plainBottomInset = clamp(v, Self.minPlainBottomInset, 0.6) }
         if let v = p.plainArtworkScale { plainArtworkScale = clamp(v, 0.6, Self.maxArtworkScale) }
-        if let v = p.plainLyricsOffset { plainLyricsOffset = clamp(v, 0, Self.maxLyricsOffset) }
+        if let v = p.plainLyricsOffset { plainLyricsOffset = v.clamped(to: Self.plainLyricsRange) }
         if let v = p.lyricsEnabled { lyricsEnabled = v }
         if let v = p.lyricsPosition.flatMap(LyricsPosition.init(rawValue:)) { lyricsPosition = v }
         if let v = p.lyricsScale { lyricsScale = clamp(v, 0.6, 1.4) }
@@ -357,4 +371,8 @@ extension AppSettings {
         if let v = p.awakeDurationIndex { awakeDurationIndex = min(max(v, 0), Self.awakeDurations.count - 1) }
         return p.name
     }
+}
+
+extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self { min(max(self, range.lowerBound), range.upperBound) }
 }
