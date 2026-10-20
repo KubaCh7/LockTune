@@ -10,6 +10,7 @@
 		7AF5DE1B6E0EC1EC5482161C /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D94E72CC14952AEC7B12708 /* AppCoordinator.swift */; };
 		54E608732B57D245D59C38A6 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A193A5F8393E3771B62CF94E /* AppSettings.swift */; };
 		1585378BE45451239D57761F /* LockTuneApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14044BDCE930ADFC4E189F89 /* LockTuneApp.swift */; };
+		AD685AE98215EEE3B82CF5AF /* Updater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BCE92383552402A55A44EA8 /* Updater.swift */; };
 		D4A0402B6A9DF16684E82A85 /* LRCParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F8AA19C752A231A713C7D0D /* LRCParser.swift */; };
 		AE4F7B3DB17CA214054CD8B0 /* LyricsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4BEB5E82A5C4652BDCF7A24 /* LyricsController.swift */; };
 		4F5B3E7936907706F54D9C46 /* LyricsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95EC7AFB1C6C6F362EAE2E9 /* LyricsModels.swift */; };
@@ -48,6 +49,7 @@
 		0D94E72CC14952AEC7B12708 /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
 		A193A5F8393E3771B62CF94E /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		14044BDCE930ADFC4E189F89 /* LockTuneApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockTuneApp.swift; sourceTree = "<group>"; };
+		3BCE92383552402A55A44EA8 /* Updater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Updater.swift; sourceTree = "<group>"; };
 		4F8AA19C752A231A713C7D0D /* LRCParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LRCParser.swift; sourceTree = "<group>"; };
 		F4BEB5E82A5C4652BDCF7A24 /* LyricsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsController.swift; sourceTree = "<group>"; };
 		B95EC7AFB1C6C6F362EAE2E9 /* LyricsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsModels.swift; sourceTree = "<group>"; };
@@ -100,6 +102,7 @@
 				0D94E72CC14952AEC7B12708 /* AppCoordinator.swift */,
 				A193A5F8393E3771B62CF94E /* AppSettings.swift */,
 				14044BDCE930ADFC4E189F89 /* LockTuneApp.swift */,
+				3BCE92383552402A55A44EA8 /* Updater.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -297,6 +300,7 @@
 				7AF5DE1B6E0EC1EC5482161C /* AppCoordinator.swift in Sources */,
 				54E608732B57D245D59C38A6 /* AppSettings.swift in Sources */,
 				1585378BE45451239D57761F /* LockTuneApp.swift in Sources */,
+				AD685AE98215EEE3B82CF5AF /* Updater.swift in Sources */,
 				D4A0402B6A9DF16684E82A85 /* LRCParser.swift in Sources */,
 				AE4F7B3DB17CA214054CD8B0 /* LyricsController.swift in Sources */,
 				4F5B3E7936907706F54D9C46 /* LyricsModels.swift in Sources */,

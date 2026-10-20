@@ -14,7 +14,8 @@ struct LockTuneApp: App {
         MenuBarExtra {
             MenuBarMenu(coordinator: AppCoordinator.shared,
                         player: AppCoordinator.shared.nowPlaying,
-                        settings: AppCoordinator.shared.settings)
+                        settings: AppCoordinator.shared.settings,
+                        updater: Updater.shared)
         } label: {
             Image(systemName: "music.note.house")
         }
@@ -27,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // LSUIElement = YES in Info.plist keeps us out of the Dock and ⌘⇥.
         AppCoordinator.shared.start()
+        Updater.shared.start()
 
         // First launch: show the status window so it's obvious the app runs
         // (on notched MacBooks the menu-bar icon can hide behind the notch).
@@ -48,6 +50,7 @@ struct MenuBarMenu: View {
     @ObservedObject var coordinator: AppCoordinator
     @ObservedObject var player: NowPlayingController
     @ObservedObject var settings: AppSettings
+    @ObservedObject var updater: Updater
 
     var body: some View {
         if let track = player.track {
@@ -65,6 +68,12 @@ struct MenuBarMenu: View {
 
         Button("Status & Settings…") { SettingsWindowController.shared.show() }
             .keyboardShortcut(",", modifiers: .command)
+
+        if let build = updater.availableBuild {
+            Button("Install Update (build \(build))…") { updater.installUpdate() }
+        } else {
+            Button("Check for Updates…") { Task { await updater.check(userInitiated: true) } }
+        }
 
         Button("Quit LockTune") { NSApp.terminate(nil) }
             .keyboardShortcut("q", modifiers: .command)

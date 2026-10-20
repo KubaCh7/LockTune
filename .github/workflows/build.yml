@@ -3,6 +3,9 @@ name: Build LockTune
 on:
   push:
     branches: [main]
+    # Docs-only changes don't need a new build/release.
+    paths-ignore:
+      - '**.md'
   workflow_dispatch:
 
 permissions:
@@ -32,6 +35,7 @@ jobs:
             -derivedDataPath build \
             ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             build 2>&1 | tee build.log | grep -E "error:|warning: .*(isolated|Sendable)|BUILD (SUCCEEDED|FAILED)" || true
           test -d build/Build/Products/Release/LockTune.app
 
@@ -63,6 +67,9 @@ jobs:
           ln -s /Applications dmg/Applications
           hdiutil create -volname "LockTune" -srcfolder dmg -ov -format UDZO LockTune.dmg
           ditto -c -k --keepParent "$APP" LockTune-app.zip
+          # Read by the in-app updater.
+          printf '{"build": %s, "commit": "%s"}\n' "${{ github.run_number }}" "${{ github.sha }}" > version.json
+          cat version.json
 
       - uses: actions/upload-artifact@v4
         with:
@@ -76,6 +83,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest LockTune.dmg LockTune-app.zip \
-            --title "LockTune – latest build" \
+          gh release create latest LockTune.dmg LockTune-app.zip version.json \
+            --title "LockTune – build ${{ github.run_number }}" \
             --notes "Download **LockTune.dmg**, open it and drag LockTune into Applications. First launch: right-click → Open (or System Settings → Privacy & Security → Open Anyway), because the app isn't notarized. Built from ${{ github.sha }}."

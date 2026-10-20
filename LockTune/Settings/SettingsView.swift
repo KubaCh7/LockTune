@@ -167,6 +167,8 @@ private struct StatusRow: View {
 private struct GeneralSettings: View {
     @ObservedObject var coordinator: AppCoordinator
     @ObservedObject var settings: AppSettings
+    @ObservedObject private var updater = Updater.shared
+    @AppStorage(Updater.autoCheckKey) private var autoCheckUpdates = true
 
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var launchError: String?
@@ -187,6 +189,21 @@ private struct GeneralSettings: View {
                     }))
                 if let launchError {
                     Text(launchError).font(.caption).foregroundStyle(.red)
+                }
+            }
+
+            Section("Updates") {
+                LabeledContent("Installed version", value: updater.versionString)
+                Toggle("Check for updates automatically", isOn: $autoCheckUpdates)
+                HStack {
+                    if let build = updater.availableBuild {
+                        Button("Install Update (build \(build))") { updater.installUpdate() }
+                            .keyboardShortcut(.defaultAction)
+                    } else {
+                        Button("Check for Updates") { Task { await updater.check(userInitiated: true) } }
+                    }
+                    Spacer()
+                    Text(updateStatus).font(.caption).foregroundStyle(.secondary)
                 }
             }
 
@@ -225,6 +242,18 @@ private struct GeneralSettings: View {
         }
         .formStyle(.grouped)
         .onAppear { launchAtLogin = LaunchAtLogin.isEnabled }
+    }
+
+    private var updateStatus: String {
+        switch updater.state {
+        case .idle: return ""
+        case .checking: return "Checking…"
+        case .upToDate: return "Up to date"
+        case .available(let build): return "Build \(build) available"
+        case .downloading: return "Downloading…"
+        case .installing: return "Installing…"
+        case .failed(let message): return message
+        }
     }
 }
 
