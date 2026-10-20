@@ -49,25 +49,25 @@ private struct StatusTab: View {
                           title: "Music detected",
                           detail: player.track.map { "\($0.title) — \($0.artist) · \(player.sourceName ?? "")" }
                               ?? "Start a song in Spotify or Apple Music.")
-                StatusRow(ok: !player.automationDenied,
-                          title: "Permission to control Music / Spotify",
-                          detail: player.automationDenied
-                              ? "Denied. Turn LockTune on in System Settings → Privacy & Security → Automation."
-                              : "If macOS asks “LockTune wants to control Spotify”, click OK.")
+                ForEach(player.providers.map { $0.displayName }, id: \.self) { name in
+                    let status = player.automationStatus[name] ?? .notDetermined
+                    StatusRow(ok: status == .allowed,
+                              title: "Permission to control \(name): \(status.title)",
+                              detail: permissionHint(status, name: name, lastError: player.lastErrors[name]))
+                }
                 StatusRow(ok: coordinator.widget.lockScreenLayer?.isAvailable == true,
-                          title: "Drawing on top of the lock screen",
+                          title: "Showing on the lock screen",
                           detail: coordinator.widget.lockScreenLayer?.isAvailable == true
-                              ? "Enabled."
-                              : "Not available in this build. The widget is prepared while locked and shown right after you unlock.")
+                              ? "Ready. Lock your Mac with music playing."
+                              : "Not available on this macOS version. The widget is shown right after you unlock.")
 
                 HStack {
                     Button("Ask for Permission") { player.requestAutomationAccess() }
-                    Button("Open Automation Settings") {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
+                    Button("Reset & Ask Again") { player.requestAutomationAccess(resetFirst: true) }
+                    Button("Open Automation Settings") { AutomationPermission.openSystemSettings() }
                 }
+                Text("Spotify or Music must be open for macOS to ask.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Try it") {
@@ -82,6 +82,17 @@ private struct StatusTab: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { player.refreshAutomationStatus() }
+    }
+
+    private func permissionHint(_ status: AutomationStatus, name: String, lastError: Int?) -> String {
+        switch status {
+        case .allowed: return "OK."
+        case .notRunning: return "Open \(name) to check."
+        case .denied: return "Denied earlier. Click “Reset & Ask Again”, or turn LockTune → \(name) on in System Settings → Privacy & Security → Automation."
+        case .notDetermined: return "Click “Ask for Permission” and then OK in the macOS dialog."
+        case .unknown(let code): return "macOS returned \(code)\(lastError.map { ", last script error \($0)" } ?? "")."
+        }
     }
 }
 

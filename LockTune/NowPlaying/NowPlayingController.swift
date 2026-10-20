@@ -19,6 +19,10 @@ final class NowPlayingController: ObservableObject {
     @Published private(set) var timelineRevision = 0
     /// True when macOS refused our Apple Events (Automation permission denied).
     @Published private(set) var automationDenied = false
+    /// Per-player Automation status, keyed by provider display name.
+    @Published private(set) var automationStatus: [String: AutomationStatus] = [:]
+    /// Last AppleScript error per player (for the Status window).
+    @Published private(set) var lastErrors: [String: Int] = [:]
 
     let providers: [NowPlayingProvider]
     private let settings: AppSettings
@@ -69,7 +73,7 @@ final class NowPlayingController: ObservableObject {
         }
 
         setHighFrequency(false)
-        poll()
+        requestAutomationAccess()
     }
 
     /// 4 Hz while the overlay is visible, every 2 s otherwise.
@@ -117,6 +121,9 @@ final class NowPlayingController: ObservableObject {
         for provider in providers where settings.preferredSource.allows(provider.id) && provider.isRunning {
             let snapshot = provider.snapshot()
             if provider.lastErrorCode == -1743 { denied = true }
+            if lastErrors[provider.displayName] != provider.lastErrorCode {
+                lastErrors[provider.displayName] = provider.lastErrorCode
+            }
             guard let snapshot, snapshot.trackID != nil else { continue }
 
             var rank: Double = snapshot.state == .playing ? 2 : 1
@@ -246,12 +253,30 @@ final class NowPlayingController: ObservableObject {
         ignoreStateUntil = Date().addingTimeInterval(0.6)
     }
 
-    /// Sends a harmless Apple Event to each running player so macOS shows the
-    /// Automation consent prompt right away.
-    func requestAutomationAccess() {
-        for provider in providers where provider.isRunning {
-            _ = provider.snapshot()
+    /// Shows the macOS "LockTune wants to control …" prompt for every running
+    /// player (and refreshes the status shown in the Status window).
+    func requestAutomationAccess(resetFirst: Bool = false) {
+        let players = providers.map { ($0.displayName, $0.bundleIdentifier) }
+        Task { @MainActor [weak self] in
+            if resetFirst {
+                await Task.detached { AutomationPermission.resetDecision() }.value
+            }
+            for (name, bundleID) in players {
+                let status = await AutomationPermission.checkAsync(bundleID: bundleID, ask: true)
+                self?.automationStatus[name] = status
+            }
+            self?.poll()
         }
-        poll()
+    }
+
+    /// Refreshes the per-player status without prompting.
+    func refreshAutomationStatus() {
+        let players = providers.map { ($0.displayName, $0.bundleIdentifier) }
+        Task { @MainActor [weak self] in
+            for (name, bundleID) in players {
+                let status = await AutomationPermission.checkAsync(bundleID: bundleID, ask: false)
+                self?.automationStatus[name] = status
+            }
+        }
     }
 }
