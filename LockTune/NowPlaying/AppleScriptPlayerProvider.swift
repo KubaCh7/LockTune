@@ -40,7 +40,11 @@ class AppleScriptPlayerProvider: NowPlayingProvider {
     private lazy var snapshotScript = """
     tell \(tellTarget)
         with timeout of 2 seconds
-            set st to (player state as text)
+            -- Compare against the enum instead of coercing it to text:
+            -- coercion can yield raw codes («constant ****kPSP») in some setups.
+            set st to "stopped"
+            if player state is playing then set st to "playing"
+            if player state is paused then set st to "paused"
             set pos to 0
             set tid to ""
             try
@@ -84,7 +88,7 @@ class AppleScriptPlayerProvider: NowPlayingProvider {
         let stateText = result.item(1)?.stringValue ?? "stopped"
         let state: PlaybackState
         switch stateText {
-        case "playing", "fast forwarding", "rewinding": state = .playing
+        case "playing": state = .playing
         case "paused": state = .paused
         default: state = .stopped
         }

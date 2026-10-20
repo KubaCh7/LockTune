@@ -1,35 +1,36 @@
 import AppKit
 import Combine
 
-/// Wires the services together: now playing, lyrics, overlay and its triggers.
+/// Wires the services together: now playing, lyrics, the widget and its triggers.
 @MainActor
 final class AppCoordinator: ObservableObject {
     static let shared = AppCoordinator()
-
-    enum Reason { case manual, hotkey, idle, screenLock, displaySleep }
 
     let settings: AppSettings
     let nowPlaying: NowPlayingController
     let lyrics: LyricsController
     let overlayState: OverlayState
-    let overlay: OverlayWindowController
+    let widget: LockWidgetController
 
     private let hotkeys = HotkeyManager()
     private let idleMonitor = IdleMonitor()
     private let lockMonitor = LockMonitor()
     private var cancellables = Set<AnyCancellable>()
     private var started = false
+    /// The widget was put up while locked but couldn't go above the lock screen.
+    private var showsAfterUnlock = false
 
     /// The shortcut could not be registered (already used by another app).
     @Published private(set) var hotkeyUnavailable = false
+    @Published private(set) var isScreenLocked = false
 
     private init() {
         settings = AppSettings()
         nowPlaying = NowPlayingController(settings: settings)
         lyrics = LyricsController(nowPlaying: nowPlaying, settings: settings)
         overlayState = OverlayState()
-        overlay = OverlayWindowController(overlay: overlayState, player: nowPlaying,
-                                          lyrics: lyrics, settings: settings)
+        widget = LockWidgetController(overlay: overlayState, player: nowPlaying,
+                                      lyrics: lyrics, settings: settings)
     }
 
     func start() {
@@ -38,17 +39,17 @@ final class AppCoordinator: ObservableObject {
 
         nowPlaying.start()
 
-        // Global hotkey.
-        hotkeys.onTrigger = { [weak self] in self?.toggleOverlay(reason: .hotkey) }
+        // Global shortcut: lock the Mac (the widget then appears by itself).
+        hotkeys.onTrigger = { [weak self] in self?.lockNow() }
         settings.$hotkey
             .combineLatest(settings.$hotkeyEnabled)
             .sink { [weak self] hotkey, enabled in self?.applyHotkey(hotkey, enabled: enabled) }
             .store(in: &cancellables)
 
-        // Idle trigger.
+        // Optional: lock after being idle while music plays.
         idleMonitor.onIdle = { [weak self] in
-            guard let self, self.nowPlaying.isPlaying else { return }
-            self.showOverlay(reason: .idle)
+            guard let self, self.nowPlaying.isPlaying, !self.isScreenLocked else { return }
+            self.lockNow()
         }
         settings.$idleEnabled
             .combineLatest(settings.$idleMinutes)
@@ -59,54 +60,80 @@ final class AppCoordinator: ObservableObject {
             .store(in: &cancellables)
         idleMonitor.start()
 
-        // Screen lock / display sleep.
-        lockMonitor.onEvent = { [weak self] event in self?.handle(event) }
+        // Lock state drives the widget.
+        lockMonitor.onChange = { [weak self] locked in self?.lockStateChanged(locked) }
         lockMonitor.start()
 
-        // Re-focus the overlay if the player changes while it's up.
+        // Show/hide the widget when music starts/stops while locked.
+        // (@Published emits before the value changes, so evaluate on the next turn.)
+        nowPlaying.$track
+            .map { $0?.id }
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                Task { @MainActor in self?.updateWidget() }
+            }
+            .store(in: &cancellables)
+        settings.$lockWidgetEnabled
+            .dropFirst()
+            .sink { [weak self] _ in
+                Task { @MainActor in self?.updateWidget() }
+            }
+            .store(in: &cancellables)
         settings.$preferredSource
             .dropFirst()
             .sink { [weak self] _ in self?.nowPlaying.refreshSoon() }
             .store(in: &cancellables)
     }
 
-    // MARK: Overlay
+    // MARK: Actions
 
-    func showOverlay(reason: Reason) {
-        guard !overlay.isVisible else { return }
-        nowPlaying.poll() // make sure the state is fresh
-
-        if !nowPlaying.hasTrack && settings.emptyBehavior == .doNotShow {
-            if reason == .manual || reason == .hotkey { NSSound.beep() }
-            return
-        }
-        overlay.show()
+    func lockNow() {
+        nowPlaying.poll()
+        ScreenLocker.lock()
     }
 
-    func toggleOverlay(reason: Reason) {
-        if overlay.isVisible {
-            overlay.dismiss()
+    func togglePreview() {
+        if widget.presentation == .preview {
+            widget.hide()
         } else {
-            showOverlay(reason: reason)
+            nowPlaying.poll()
+            widget.show(.preview)
         }
     }
 
     /// Menu items fire while the menu is still closing; wait a beat.
-    func showOverlayFromMenu() {
-        Task { @MainActor [weak self] in
+    func afterMenuCloses(_ action: @escaping @MainActor () -> Void) {
+        Task { @MainActor in
             try? await Task.sleep(nanoseconds: 200_000_000)
-            self?.showOverlay(reason: .manual)
+            action()
         }
     }
 
-    private func handle(_ event: LockMonitor.Event) {
-        switch event {
-        case .screenLocked:
-            if settings.showOnLock, nowPlaying.isPlaying { showOverlay(reason: .screenLock) }
-        case .displaySlept:
-            if settings.showOnDisplaySleep, nowPlaying.isPlaying { showOverlay(reason: .displaySleep) }
-        case .screenUnlocked, .displayWoke:
-            overlay.reactivate()
+    // MARK: Lock handling
+
+    private func lockStateChanged(_ locked: Bool) {
+        isScreenLocked = locked
+        if locked {
+            nowPlaying.poll()
+            updateWidget()
+        } else {
+            if showsAfterUnlock, widget.isVisible {
+                // Fallback mode: keep the widget up as the first thing you see.
+                widget.makeInteractive()
+            } else if widget.presentation == .lockScreen {
+                widget.hide(animated: false)
+            }
+            showsAfterUnlock = false
+        }
+    }
+
+    private func updateWidget() {
+        guard isScreenLocked else { return }
+        if settings.lockWidgetEnabled && nowPlaying.hasTrack {
+            widget.show(.lockScreen)
+            showsAfterUnlock = !widget.isAboveLockScreen
+        } else if widget.presentation == .lockScreen {
+            widget.hide()
         }
     }
 

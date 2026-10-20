@@ -1,31 +1,60 @@
 import AppKit
+import CoreGraphics
 
-/// Observes screen lock and display sleep.
+/// Tracks whether the Mac is locked.
 ///
-/// Nothing can be drawn above the real macOS lock screen, so these events are
-/// used to put the overlay up *behind* it: when the user wakes/unlocks the Mac
-/// they land on the now-playing screen instead of their desktop.
+/// Uses the `com.apple.screenIsLocked/Unlocked` distributed notifications and,
+/// as a safety net (they are occasionally late or missing), polls the session
+/// dictionary's `CGSSessionScreenIsLocked` flag.
 @MainActor
 final class LockMonitor {
-    enum Event { case screenLocked, screenUnlocked, displaySlept, displayWoke }
+    var onChange: ((Bool) -> Void)?
+    private(set) var isLocked = false
 
-    var onEvent: ((Event) -> Void)?
-    private var observers: [(NotificationCenter, NSObjectProtocol)] = []
+    private var observers: [NSObjectProtocol] = []
+    private var timer: Timer?
+    private var lastPolled = false
 
     func start() {
-        let distributed = DistributedNotificationCenter.default()
-        observe(distributed, "com.apple.screenIsLocked", .screenLocked)
-        observe(distributed, "com.apple.screenIsUnlocked", .screenUnlocked)
+        let center = DistributedNotificationCenter.default()
+        observers.append(center.addObserver(forName: Notification.Name("com.apple.screenIsLocked"),
+                                            object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.set(true) }
+        })
+        observers.append(center.addObserver(forName: Notification.Name("com.apple.screenIsUnlocked"),
+                                            object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.set(false) }
+        })
 
-        let workspace = NSWorkspace.shared.notificationCenter
-        observe(workspace, NSWorkspace.screensDidSleepNotification.rawValue, .displaySlept)
-        observe(workspace, NSWorkspace.screensDidWakeNotification.rawValue, .displayWoke)
+        lastPolled = Self.sessionIsLocked
+        set(lastPolled)
+
+        let timer = Timer(timeInterval: 1.5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.poll() }
+        }
+        timer.tolerance = 0.3
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
     }
 
-    private func observe(_ center: NotificationCenter, _ name: String, _ event: Event) {
-        let token = center.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.onEvent?(event) }
-        }
-        observers.append((center, token))
+    static var sessionIsLocked: Bool {
+        guard let dict = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
+        if let flag = dict["CGSSessionScreenIsLocked"] as? Bool { return flag }
+        return (dict["CGSSessionScreenIsLocked"] as? Int) == 1
+    }
+
+    private func poll() {
+        let polled = Self.sessionIsLocked
+        // Only react to transitions of the polled value, so a slightly late
+        // flag never overrides a fresh notification.
+        guard polled != lastPolled else { return }
+        lastPolled = polled
+        set(polled)
+    }
+
+    private func set(_ locked: Bool) {
+        guard locked != isLocked else { return }
+        isLocked = locked
+        onChange?(locked)
     }
 }

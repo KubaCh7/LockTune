@@ -57,12 +57,6 @@ enum LyricsLayout: String, CaseIterable, Identifiable {
     var title: String { self == .sideBySide ? "Side by side" : "Compact header" }
 }
 
-enum EmptyBehavior: String, CaseIterable, Identifiable {
-    case clockOnly, doNotShow
-    var id: String { rawValue }
-    var title: String { self == .clockOnly ? "Show the clock only" : "Don't show the overlay" }
-}
-
 enum PreferredSource: String, CaseIterable, Identifiable {
     case automatic, music, spotify
     var id: String { rawValue }
@@ -86,17 +80,15 @@ final class AppSettings: ObservableObject {
         static let hotkey = "hotkey"
         static let idleEnabled = "idleEnabled"
         static let idleMinutes = "idleMinutes"
-        static let showOnLock = "showOnLock"
-        static let showOnDisplaySleep = "showOnDisplaySleep"
+        static let lockWidgetEnabled = "lockWidgetEnabled"
+        static let lockWallpaper = "lockWallpaper"
         static let clockFont = "clockFont"
         static let clockWeight = "clockWeight"
         static let backgroundStyle = "backgroundStyle"
         static let lyricsLayout = "lyricsLayout"
         static let lyricsEnabled = "lyricsEnabled"
-        static let emptyBehavior = "emptyBehavior"
         static let preferredSource = "preferredSource"
         static let allDisplays = "allDisplays"
-        static let dismissOnAnyKey = "dismissOnAnyKey"
     }
 
     private let defaults: UserDefaults
@@ -107,17 +99,17 @@ final class AppSettings: ObservableObject {
     }
     @Published var idleEnabled: Bool { didSet { defaults.set(idleEnabled, forKey: Key.idleEnabled) } }
     @Published var idleMinutes: Int { didSet { defaults.set(idleMinutes, forKey: Key.idleMinutes) } }
-    @Published var showOnLock: Bool { didSet { defaults.set(showOnLock, forKey: Key.showOnLock) } }
-    @Published var showOnDisplaySleep: Bool { didSet { defaults.set(showOnDisplaySleep, forKey: Key.showOnDisplaySleep) } }
+    /// Show the widget when the Mac is locked.
+    @Published var lockWidgetEnabled: Bool { didSet { defaults.set(lockWidgetEnabled, forKey: Key.lockWidgetEnabled) } }
+    /// Full-screen artwork + clock behind the widget (like the reference video).
+    @Published var lockWallpaper: Bool { didSet { defaults.set(lockWallpaper, forKey: Key.lockWallpaper) } }
     @Published var clockFont: ClockFontStyle { didSet { defaults.set(clockFont.rawValue, forKey: Key.clockFont) } }
     @Published var clockWeight: ClockWeight { didSet { defaults.set(clockWeight.rawValue, forKey: Key.clockWeight) } }
     @Published var backgroundStyle: BackgroundStyle { didSet { defaults.set(backgroundStyle.rawValue, forKey: Key.backgroundStyle) } }
     @Published var lyricsLayout: LyricsLayout { didSet { defaults.set(lyricsLayout.rawValue, forKey: Key.lyricsLayout) } }
     @Published var lyricsEnabled: Bool { didSet { defaults.set(lyricsEnabled, forKey: Key.lyricsEnabled) } }
-    @Published var emptyBehavior: EmptyBehavior { didSet { defaults.set(emptyBehavior.rawValue, forKey: Key.emptyBehavior) } }
     @Published var preferredSource: PreferredSource { didSet { defaults.set(preferredSource.rawValue, forKey: Key.preferredSource) } }
     @Published var allDisplays: Bool { didSet { defaults.set(allDisplays, forKey: Key.allDisplays) } }
-    @Published var dismissOnAnyKey: Bool { didSet { defaults.set(dismissOnAnyKey, forKey: Key.dismissOnAnyKey) } }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -125,11 +117,10 @@ final class AppSettings: ObservableObject {
             Key.hotkeyEnabled: true,
             Key.idleEnabled: false,
             Key.idleMinutes: 5,
-            Key.showOnLock: false,
-            Key.showOnDisplaySleep: false,
+            Key.lockWidgetEnabled: true,
+            Key.lockWallpaper: false,
             Key.lyricsEnabled: true,
             Key.allDisplays: true,
-            Key.dismissOnAnyKey: true,
         ])
 
         hotkeyEnabled = defaults.bool(forKey: Key.hotkeyEnabled)
@@ -137,16 +128,14 @@ final class AppSettings: ObservableObject {
             .flatMap { try? JSONDecoder().decode(Hotkey.self, from: $0) } ?? .default
         idleEnabled = defaults.bool(forKey: Key.idleEnabled)
         idleMinutes = max(1, defaults.integer(forKey: Key.idleMinutes))
-        showOnLock = defaults.bool(forKey: Key.showOnLock)
-        showOnDisplaySleep = defaults.bool(forKey: Key.showOnDisplaySleep)
+        lockWidgetEnabled = defaults.bool(forKey: Key.lockWidgetEnabled)
+        lockWallpaper = defaults.bool(forKey: Key.lockWallpaper)
         clockFont = defaults.string(forKey: Key.clockFont).flatMap(ClockFontStyle.init(rawValue:)) ?? .newYork
         clockWeight = defaults.string(forKey: Key.clockWeight).flatMap(ClockWeight.init(rawValue:)) ?? .regular
         backgroundStyle = defaults.string(forKey: Key.backgroundStyle).flatMap(BackgroundStyle.init(rawValue:)) ?? .blurred
         lyricsLayout = defaults.string(forKey: Key.lyricsLayout).flatMap(LyricsLayout.init(rawValue:)) ?? .sideBySide
         lyricsEnabled = defaults.bool(forKey: Key.lyricsEnabled)
-        emptyBehavior = defaults.string(forKey: Key.emptyBehavior).flatMap(EmptyBehavior.init(rawValue:)) ?? .clockOnly
         preferredSource = defaults.string(forKey: Key.preferredSource).flatMap(PreferredSource.init(rawValue:)) ?? .automatic
         allDisplays = defaults.bool(forKey: Key.allDisplays)
-        dismissOnAnyKey = defaults.bool(forKey: Key.dismissOnAnyKey)
     }
 }

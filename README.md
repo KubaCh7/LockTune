@@ -41,32 +41,29 @@ To use launch at login, copy the built app to `/Applications` first, then turn o
 
 ## Using it
 
-| Action | How |
-|---|---|
-| Show / hide | **⌃⌘L** (change it in Settings), or menu bar → *Show Lock Screen Now* |
-| Play / pause | **Space**, or the ▶︎/❚❚ button |
-| Previous / next | **← / →**, or the buttons. Previous restarts the song if it's more than 3 s in, like on iPhone. |
-| Seek | Drag the progress bar, or click a lyric line |
-| Lyrics | Click the album art, the 💬 button, or press **L**. Click again to go back. |
-| Scroll lyrics | Two-finger scroll. It snaps back to the current line after 3 s. |
-| Close | **Esc**, **↑**, any other key (can be turned off), a two-finger swipe up on the trackpad, or dragging the screen up with the mouse |
+1. Play a song in **Spotify** or **Music**.
+2. Lock the Mac: **⌃⌘Q** (or LockTune's shortcut **⌃⌘L**, which turns the display off. That locks the Mac when "Require password" is set to *Immediately*).
+3. The widget appears: album art, a glass player card (play/pause, previous/next, seek bar) and a **toolbar on the left**:
+   - 💬 **Lyrics**: art and controls move left, synced lyrics appear on the right. Clicking the album art does the same.
+   - 🖼 **Artwork wallpaper**: fills the screen with the album art and a clock, like in the reference video. Off by default, so your normal lock screen stays visible.
+   - 👁 **Hide**: hides the widget, leaving only the toolbar.
+4. **Menu bar ♪ → Preview Widget** shows the widget on the desktop, so you can see how it looks without locking (Esc closes it).
+5. **Status & Settings…** (also opens on first launch, or when you open LockTune again from Applications):
+   - checks that a song is detected and that the Automation permission is granted;
+   - lets you change the shortcut, idle-lock, all displays, wallpaper style, clock font and lyrics.
 
-### Settings
+In the widget (preview, or after unlocking): **Space** play/pause · **← / →** previous/next · **L** lyrics · two-finger scroll to browse lyrics · **Esc** close.
 
-- **General:** launch at login, the global shortcut (recorder + on/off), which music source to use (Automatic / Apple Music / Spotify), and Automation status.
-- **Triggers:**
-  - Show after N minutes idle while music is playing.
-  - Show when the screen locks, and/or when the display sleeps.
-  - What to do when nothing is playing: show the clock only, or don't show the overlay.
-  - Whether any other key closes the overlay.
-  - Cover all displays, or only the one under the pointer.
-- **Appearance:**
-  - Clock font (New York serif / SF Pro Rounded / SF Pro) and weight, with a live preview.
-  - Background: *Blurred & animated* (Apple Music style) or *Artwork wallpaper* (as in the reference video).
-  - Lyrics layout: *Side by side* (as in the video) or *Compact header* (small art next to the title at the top left, lyrics fill the screen).
-  - Lyrics on/off and clearing the lyrics cache.
+### Showing the widget on the lock screen itself
 
----
+macOS has **no public API** for drawing over the lock screen. Apps that do it (lock-screen widget apps, and most likely the app in the reference video) move their window into a private *SkyLight* window-server space that sits above the lock screen.
+
+LockTune **does not ship that private-API code**. Instead it has an extension point, the `LockScreenLayer` protocol in `Overlay/LockWidgetController.swift`:
+
+- **Without a layer** (this build): the widget is put up the moment you lock, but behind the system lock screen. It's the first thing you see after unlocking. Esc closes it.
+- **With a layer:** an implementation that returns `true` from `attach(_:)` makes the same widget float over the real lock screen. It's removed automatically when you unlock.
+
+Be aware: a window above the lock screen can cover the system password field and could in principle imitate it. That's why this is a deliberate opt-in and not the default.
 
 ## Architecture
 
@@ -118,9 +115,7 @@ To add a new source (for example a browser or another player), implement `NowPla
 
 ## Honest list of limitations
 
-1. **It can't appear on the real lock screen.** macOS doesn't let third-party apps draw on the login/lock window. LockTune uses a borderless window at `NSWindow.Level.screenSaver` on every screen, which covers the menu bar and Dock. While it's up it also hides the Dock and menu bar and blocks ⌘⇥.
-   - **"Show when the screen locks" / "when the display sleeps"** put the overlay up *behind* the system lock screen. You see it right after you unlock or wake the display, not on the lock screen itself.
-   - Force Quit (⌥⌘⎋) still works on purpose, so you can't get trapped.
+1. **Lock screen:** see *Showing the widget on the lock screen itself* above. With no public API, this build shows the widget right after you unlock.
 2. **Only Apple Music and Spotify are supported**, through AppleScript. Browsers, YouTube, podcasts apps and others aren't, because there's no public system-wide "now playing" API. The private MediaRemote framework is **not used**: it's locked down since macOS 15.4. The `NowPlayingProvider` protocol leaves room for more sources.
 3. **Apple Music artwork:** for songs streamed from Apple Music that aren't in your library, AppleScript often returns no artwork. In that case the cover is looked up via the public iTunes Search API, which can occasionally pick the wrong edition of an album.
 4. **Lyrics:**

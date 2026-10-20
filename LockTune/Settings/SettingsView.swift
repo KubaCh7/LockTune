@@ -8,15 +8,98 @@ struct SettingsView: View {
 
     var body: some View {
         TabView {
-            GeneralSettings(coordinator: coordinator, settings: settings, player: player)
+            StatusTab(coordinator: coordinator, settings: settings, player: player)
+                .tabItem { Label("Status", systemImage: "checkmark.circle") }
+            GeneralSettings(coordinator: coordinator, settings: settings)
                 .tabItem { Label("General", systemImage: "gearshape") }
-            TriggerSettings(settings: settings)
-                .tabItem { Label("Triggers", systemImage: "bolt.fill") }
             AppearanceSettings(coordinator: coordinator, settings: settings)
                 .tabItem { Label("Appearance", systemImage: "paintpalette") }
         }
-        .frame(width: 520)
-        .fixedSize(horizontal: false, vertical: true)
+        .padding(.top, 8)
+        .frame(width: 560, height: 560)
+    }
+}
+
+// MARK: - Status
+
+private struct StatusTab: View {
+    @ObservedObject var coordinator: AppCoordinator
+    @ObservedObject var settings: AppSettings
+    @ObservedObject var player: NowPlayingController
+
+    var body: some View {
+        Form {
+            Section {
+                HStack(spacing: 14) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 56, height: 56)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("LockTune is running").font(.title3.weight(.semibold))
+                        Text("Play music in Spotify or Music, then lock your Mac (⌃⌘Q). The player widget appears for your lock screen, with lyrics on the left toolbar.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section("Checklist") {
+                StatusRow(ok: player.hasTrack,
+                          title: "Music detected",
+                          detail: player.track.map { "\($0.title) — \($0.artist) · \(player.sourceName ?? "")" }
+                              ?? "Start a song in Spotify or Apple Music.")
+                StatusRow(ok: !player.automationDenied,
+                          title: "Permission to control Music / Spotify",
+                          detail: player.automationDenied
+                              ? "Denied. Turn LockTune on in System Settings → Privacy & Security → Automation."
+                              : "If macOS asks “LockTune wants to control Spotify”, click OK.")
+                StatusRow(ok: coordinator.widget.lockScreenLayer?.isAvailable == true,
+                          title: "Drawing on top of the lock screen",
+                          detail: coordinator.widget.lockScreenLayer?.isAvailable == true
+                              ? "Enabled."
+                              : "Not available in this build. The widget is prepared while locked and shown right after you unlock.")
+
+                HStack {
+                    Button("Ask for Permission") { player.requestAutomationAccess() }
+                    Button("Open Automation Settings") {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                }
+            }
+
+            Section("Try it") {
+                HStack {
+                    Button("Preview Widget") { coordinator.togglePreview() }
+                        .keyboardShortcut(.defaultAction)
+                    Button("Lock Screen Now") { coordinator.lockNow() }
+                }
+                Text("The menu-bar icon (♪ with a house) can be hidden behind the notch on MacBooks. Open LockTune again from Applications to get back to this window.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+private struct StatusRow: View {
+    let ok: Bool
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                .foregroundStyle(ok ? Color.green : Color.orange)
+                .font(.system(size: 16))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.body.weight(.medium))
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
@@ -25,7 +108,6 @@ struct SettingsView: View {
 private struct GeneralSettings: View {
     @ObservedObject var coordinator: AppCoordinator
     @ObservedObject var settings: AppSettings
-    @ObservedObject var player: NowPlayingController
 
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var launchError: String?
@@ -49,9 +131,19 @@ private struct GeneralSettings: View {
                 }
             }
 
+            Section("Lock screen") {
+                Toggle("Show the music widget when the Mac is locked", isOn: $settings.lockWidgetEnabled)
+                Toggle("Lock after being idle while music plays", isOn: $settings.idleEnabled)
+                Stepper(value: $settings.idleMinutes, in: 1...120) {
+                    Text("Idle time: \(settings.idleMinutes) min")
+                }
+                .disabled(!settings.idleEnabled)
+                Toggle("Show on all displays", isOn: $settings.allDisplays)
+            }
+
             Section("Keyboard shortcut") {
                 Toggle("Global shortcut", isOn: $settings.hotkeyEnabled)
-                LabeledContent("Show / hide lock screen") {
+                LabeledContent("Lock screen now") {
                     HotkeyRecorderView(hotkey: $settings.hotkey) { recording in
                         recording ? coordinator.suspendHotkey() : coordinator.resumeHotkey()
                     }
@@ -61,7 +153,7 @@ private struct GeneralSettings: View {
                     Text("This shortcut is already used by another app. Pick a different one.")
                         .font(.caption).foregroundStyle(.orange)
                 }
-                Text("While the lock screen is up: Space play/pause · ←/→ previous/next · L lyrics · Esc or swipe up to close.")
+                Text("The shortcut turns the display off; it locks when System Settings → Lock Screen → “Require password” is set to Immediately. ⌃⌘Q always locks.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -69,67 +161,10 @@ private struct GeneralSettings: View {
                 Picker("Player", selection: $settings.preferredSource) {
                     ForEach(PreferredSource.allCases) { Text($0.title).tag($0) }
                 }
-                LabeledContent("Now playing") {
-                    if let track = player.track {
-                        Text("\(track.title) — \(track.artist) (\(player.sourceName ?? ""))")
-                            .lineLimit(1)
-                    } else {
-                        Text("Nothing").foregroundStyle(.secondary)
-                    }
-                }
-                if player.automationDenied {
-                    Text("LockTune isn't allowed to control Music/Spotify. Enable it in System Settings → Privacy & Security → Automation.")
-                        .font(.caption).foregroundStyle(.orange)
-                }
-                HStack {
-                    Button("Request Access") { player.requestAutomationAccess() }
-                    Button("Open Automation Settings") {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
-                }
             }
         }
         .formStyle(.grouped)
         .onAppear { launchAtLogin = LaunchAtLogin.isEnabled }
-    }
-}
-
-// MARK: - Triggers
-
-private struct TriggerSettings: View {
-    @ObservedObject var settings: AppSettings
-
-    var body: some View {
-        Form {
-            Section("Show automatically") {
-                Toggle("After being idle while music plays", isOn: $settings.idleEnabled)
-                Stepper(value: $settings.idleMinutes, in: 1...120) {
-                    Text("Idle time: \(settings.idleMinutes) min")
-                }
-                .disabled(!settings.idleEnabled)
-
-                Toggle("When the screen locks", isOn: $settings.showOnLock)
-                Toggle("When the display goes to sleep", isOn: $settings.showOnDisplaySleep)
-                Text("macOS draws its lock screen above every app, so the overlay appears behind it and is what you see right after unlocking or waking the display.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-
-            Section("Behaviour") {
-                Picker("When nothing is playing", selection: $settings.emptyBehavior) {
-                    ForEach(EmptyBehavior.allCases) { Text($0.title).tag($0) }
-                }
-                Toggle("Any other key closes the overlay", isOn: $settings.dismissOnAnyKey)
-                Toggle("Cover all displays", isOn: $settings.allDisplays)
-            }
-
-            Section {
-                Text("The overlay is visual only — it does not lock your Mac. For real security turn on System Settings → Lock Screen → \"Require password after screen saver begins or display is turned off: Immediately\".")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-        }
-        .formStyle(.grouped)
     }
 }
 
@@ -141,7 +176,17 @@ private struct AppearanceSettings: View {
 
     var body: some View {
         Form {
-            Section("Clock") {
+            Section("Widget") {
+                Toggle("Artwork wallpaper behind the widget", isOn: $settings.lockWallpaper)
+                Picker("Wallpaper style", selection: $settings.backgroundStyle) {
+                    ForEach(BackgroundStyle.allCases) { Text($0.title).tag($0) }
+                }
+                .disabled(!settings.lockWallpaper)
+                Text("Off: only the album art, controls and lyrics float over your normal lock screen. On: the screen is filled with the artwork, like in the reference video.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section("Clock (wallpaper mode & preview)") {
                 Picker("Font", selection: $settings.clockFont) {
                     ForEach(ClockFontStyle.allCases) { Text($0.title).tag($0) }
                 }
@@ -150,23 +195,14 @@ private struct AppearanceSettings: View {
                 }
                 HStack {
                     Spacer()
-                    ClockView(size: 64, style: settings.clockFont, weight: settings.clockWeight)
+                    ClockView(size: 56, style: settings.clockFont, weight: settings.clockWeight)
                     Spacer()
                 }
-                .padding(.vertical, 6)
-            }
-
-            Section("Background") {
-                Picker("Style", selection: $settings.backgroundStyle) {
-                    ForEach(BackgroundStyle.allCases) { Text($0.title).tag($0) }
-                }
+                .padding(.vertical, 4)
             }
 
             Section("Lyrics") {
                 Toggle("Load lyrics from LRCLIB", isOn: $settings.lyricsEnabled)
-                Picker("Layout", selection: $settings.lyricsLayout) {
-                    ForEach(LyricsLayout.allCases) { Text($0.title).tag($0) }
-                }
                 Button("Clear Lyrics Cache") { coordinator.lyrics.clearCache() }
             }
         }
