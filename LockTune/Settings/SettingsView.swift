@@ -315,15 +315,23 @@ private struct AppearanceSettings: View {
         Int(((value - range.lowerBound) / (range.upperBound - range.lowerBound) * 100).rounded())
     }
 
+    /// Mirrors a "further down the screen = bigger number" value so that,
+    /// like every other slider, left = less (lower) and right = more (higher).
+    private func upward(_ value: Binding<Double>, _ range: ClosedRange<Double>) -> Binding<Double> {
+        Binding(get: { range.lowerBound + range.upperBound - value.wrappedValue },
+                set: { value.wrappedValue = range.lowerBound + range.upperBound - $0 })
+    }
+
     private func heightSlider(_ value: Binding<Double>, range: ClosedRange<Double>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Player height (artwork + controls): \(percent(value.wrappedValue, range)) %")
-            Slider(value: value, in: range) {
+        let knob = upward(value, range)
+        return VStack(alignment: .leading, spacing: 4) {
+            Text("Player height (artwork + controls): \(percent(knob.wrappedValue, range)) %")
+            Slider(value: knob, in: range) {
                 EmptyView()
             } minimumValueLabel: {
-                Text("Higher").font(.caption)
-            } maximumValueLabel: {
                 Text("Lower").font(.caption)
+            } maximumValueLabel: {
+                Text("Higher").font(.caption)
             }
         }
     }
@@ -342,14 +350,15 @@ private struct AppearanceSettings: View {
     }
 
     private func lyricsOffsetSlider(_ value: Binding<Double>, range: ClosedRange<Double>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Lyrics position: \(percent(value.wrappedValue, range)) %")
-            Slider(value: value, in: range) {
+        let knob = upward(value, range)
+        return VStack(alignment: .leading, spacing: 4) {
+            Text("Lyrics position: \(percent(knob.wrappedValue, range)) %")
+            Slider(value: knob, in: range) {
                 EmptyView()
             } minimumValueLabel: {
-                Text("Higher").font(.caption)
-            } maximumValueLabel: {
                 Text("Lower").font(.caption)
+            } maximumValueLabel: {
+                Text("Higher").font(.caption)
             }
             Text("50 % is the default. Too high can touch the clock, too low your name.")
                 .font(.caption).foregroundStyle(.secondary)
@@ -410,7 +419,7 @@ private struct AppearanceSettings: View {
                       systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange)
                 lyricsOffsetSlider($settings.plainLyricsOffset, range: AppSettings.plainLyricsRange)
-                Text("Below 50 % the player can reach your name and “Touch ID or Enter Password”. Artwork size, player height and lyrics position are independent.")
+                Text("Every slider: left = less / lower, right = more / higher. Below 50 % the player can reach your name and “Touch ID or Enter Password”.")
                     .font(.caption).foregroundStyle(.secondary)
             } header: {
                 modeHeader("Without wallpaper (normal lock screen)", inUse: !settings.lockWallpaper)
