@@ -8,8 +8,10 @@ final class OverlayWindow: NSWindow {
     var keyHandler: ((NSEvent) -> Bool)?
     var scrollHandler: ((NSEvent) -> Bool)?
 
-    init(screen: NSScreen) {
-        super.init(contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+    /// Convenience init so the subclass keeps inheriting NSWindow's designated
+    /// initialisers (and doesn't have to implement `init(coder:)`).
+    convenience init(screen: NSScreen) {
+        self.init(contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         // .screenSaver (1000) is above the menu bar (24), Dock (20) and pop-up menus.
         level = .screenSaver
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]

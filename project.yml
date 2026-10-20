@@ -1,0 +1,31 @@
+# Optional: regenerate LockTune.xcodeproj with XcodeGen (`brew install xcodegen && xcodegen`).
+# The checked-in .xcodeproj already works without this.
+name: LockTune
+options:
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+targets:
+  LockTune:
+    type: application
+    platform: macOS
+    sources:
+      - path: LockTune
+        excludes:
+          - "Support/Info.plist"
+          - "Support/LockTune.entitlements"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.LockTune
+        INFOPLIST_FILE: LockTune/Support/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: LockTune/Support/LockTune.entitlements
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"

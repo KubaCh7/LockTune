@@ -1,0 +1,420 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		7AF5DE1B6E0EC1EC5482161C /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D94E72CC14952AEC7B12708 /* AppCoordinator.swift */; };
+		54E608732B57D245D59C38A6 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A193A5F8393E3771B62CF94E /* AppSettings.swift */; };
+		1585378BE45451239D57761F /* LockTuneApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14044BDCE930ADFC4E189F89 /* LockTuneApp.swift */; };
+		D4A0402B6A9DF16684E82A85 /* LRCParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F8AA19C752A231A713C7D0D /* LRCParser.swift */; };
+		AE4F7B3DB17CA214054CD8B0 /* LyricsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4BEB5E82A5C4652BDCF7A24 /* LyricsController.swift */; };
+		4F5B3E7936907706F54D9C46 /* LyricsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95EC7AFB1C6C6F362EAE2E9 /* LyricsModels.swift */; };
+		273D7DF7104CDCC2F9B6C108 /* LyricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C868E6150BA7C8AB71B1F54 /* LyricsService.swift */; };
+		6B4C54B75E404BB1A119A678 /* AppleScriptPlayerProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED881DC0C37D64AFF7EE1719 /* AppleScriptPlayerProvider.swift */; };
+		055FCAF7D48E65C806116C8F /* AppleScriptRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7BD730E4B36712B72674600 /* AppleScriptRunner.swift */; };
+		FBC614764BADFD1806FAE298 /* ArtworkFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56B7B0326E9CB9DEABFD2B89 /* ArtworkFetcher.swift */; };
+		B8FF0F4E530508EDD4D18896 /* ArtworkPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEE9ADEF4A9ABFB921A70A0E /* ArtworkPalette.swift */; };
+		7F34FF2EED4EA22B445728B4 /* NowPlayingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C668170F1DCEE3C253DEF8A5 /* NowPlayingController.swift */; };
+		0F48C3B6BD6CD7AB55B16D58 /* NowPlayingProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07166968E2927B9EB848CD61 /* NowPlayingProvider.swift */; };
+		D518E475A13F093B5340D366 /* OverlayState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F247E63AEA72702D4CFAB090 /* OverlayState.swift */; };
+		B4F8216295EDF718238417B7 /* OverlayWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C71236AF0F82A57E7FFED11 /* OverlayWindowController.swift */; };
+		325012A7C4C4ACA7E942C9F9 /* HotkeyRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F489E21C05AC7C5172337B8 /* HotkeyRecorderView.swift */; };
+		7AA3083D1D5F2BCB1365A5E4 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB827D149D67CE7F184ADA79 /* LaunchAtLogin.swift */; };
+		C333D0C8515CA3772E24D5CD /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 302BDDAD4BC7CAD3BB6CE794 /* SettingsView.swift */; };
+		C9B0B76EA5843EB223BCB9FF /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F2F3FFA442E834C557A4BAD /* HotkeyManager.swift */; };
+		67FD3EDE74AB43D3DD439CA3 /* IdleMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C726A59960D3FAAA56B6CB /* IdleMonitor.swift */; };
+		DD060DB816A3001896D5828E /* LockMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5DA4A5CE23D23E1AAB0D77B /* LockMonitor.swift */; };
+		2E0E7B9577C3C3CD67332874 /* ArtworkBackgroundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35284B0A39BDD741498F9B20 /* ArtworkBackgroundView.swift */; };
+		41DC3DBCEA5F30B3B2FD42D6 /* ArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B6494056084E004E8AD187 /* ArtworkView.swift */; };
+		5ED30DB15F5E0811D27EAA81 /* ClockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0992441A0F5EF7462E664405 /* ClockView.swift */; };
+		FF02AEB0F1292D54E719CB53 /* LockScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E52D2C4FFB885D2B2250EC7B /* LockScreenView.swift */; };
+		713B9BEAA07898569E0C5C5C /* LyricsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5586A67896B3626A102EA23A /* LyricsView.swift */; };
+		2F4A04D54389C6BCF7BF6697 /* PlayerControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6730C105E82777C0886F03CD /* PlayerControlsView.swift */; };
+		4D1A7CB23C063D98EC53C104 /* ProgressBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F844E673C630CA18804AB9C1 /* ProgressBarView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F5BF48AA40CAD7891EB709FC /* LockTune.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LockTune.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0D94E72CC14952AEC7B12708 /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
+		A193A5F8393E3771B62CF94E /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		14044BDCE930ADFC4E189F89 /* LockTuneApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockTuneApp.swift; sourceTree = "<group>"; };
+		4F8AA19C752A231A713C7D0D /* LRCParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LRCParser.swift; sourceTree = "<group>"; };
+		F4BEB5E82A5C4652BDCF7A24 /* LyricsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsController.swift; sourceTree = "<group>"; };
+		B95EC7AFB1C6C6F362EAE2E9 /* LyricsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsModels.swift; sourceTree = "<group>"; };
+		9C868E6150BA7C8AB71B1F54 /* LyricsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsService.swift; sourceTree = "<group>"; };
+		ED881DC0C37D64AFF7EE1719 /* AppleScriptPlayerProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleScriptPlayerProvider.swift; sourceTree = "<group>"; };
+		B7BD730E4B36712B72674600 /* AppleScriptRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleScriptRunner.swift; sourceTree = "<group>"; };
+		56B7B0326E9CB9DEABFD2B89 /* ArtworkFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkFetcher.swift; sourceTree = "<group>"; };
+		AEE9ADEF4A9ABFB921A70A0E /* ArtworkPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkPalette.swift; sourceTree = "<group>"; };
+		C668170F1DCEE3C253DEF8A5 /* NowPlayingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingController.swift; sourceTree = "<group>"; };
+		07166968E2927B9EB848CD61 /* NowPlayingProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingProvider.swift; sourceTree = "<group>"; };
+		F247E63AEA72702D4CFAB090 /* OverlayState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayState.swift; sourceTree = "<group>"; };
+		3C71236AF0F82A57E7FFED11 /* OverlayWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayWindowController.swift; sourceTree = "<group>"; };
+		0F489E21C05AC7C5172337B8 /* HotkeyRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyRecorderView.swift; sourceTree = "<group>"; };
+		DB827D149D67CE7F184ADA79 /* LaunchAtLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLogin.swift; sourceTree = "<group>"; };
+		302BDDAD4BC7CAD3BB6CE794 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		17845468D684DA19C3560E9C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C8CA8AEE71B5B2F713C78A52 /* LockTune.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LockTune.entitlements; sourceTree = "<group>"; };
+		8F2F3FFA442E834C557A4BAD /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
+		08C726A59960D3FAAA56B6CB /* IdleMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleMonitor.swift; sourceTree = "<group>"; };
+		D5DA4A5CE23D23E1AAB0D77B /* LockMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockMonitor.swift; sourceTree = "<group>"; };
+		35284B0A39BDD741498F9B20 /* ArtworkBackgroundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkBackgroundView.swift; sourceTree = "<group>"; };
+		A3B6494056084E004E8AD187 /* ArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkView.swift; sourceTree = "<group>"; };
+		0992441A0F5EF7462E664405 /* ClockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockView.swift; sourceTree = "<group>"; };
+		E52D2C4FFB885D2B2250EC7B /* LockScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenView.swift; sourceTree = "<group>"; };
+		5586A67896B3626A102EA23A /* LyricsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsView.swift; sourceTree = "<group>"; };
+		6730C105E82777C0886F03CD /* PlayerControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerControlsView.swift; sourceTree = "<group>"; };
+		F844E673C630CA18804AB9C1 /* ProgressBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBarView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		267AEBE1BACFD8AB573455B5 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				0D94E72CC14952AEC7B12708 /* AppCoordinator.swift */,
+				A193A5F8393E3771B62CF94E /* AppSettings.swift */,
+				14044BDCE930ADFC4E189F89 /* LockTuneApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		5258596AD5CE26889CA09E0D /* Lyrics */ = {
+			isa = PBXGroup;
+			children = (
+				4F8AA19C752A231A713C7D0D /* LRCParser.swift */,
+				F4BEB5E82A5C4652BDCF7A24 /* LyricsController.swift */,
+				B95EC7AFB1C6C6F362EAE2E9 /* LyricsModels.swift */,
+				9C868E6150BA7C8AB71B1F54 /* LyricsService.swift */,
+			);
+			path = Lyrics;
+			sourceTree = "<group>";
+		};
+		252A1F0BDAA151DE9B55B524 /* NowPlaying */ = {
+			isa = PBXGroup;
+			children = (
+				ED881DC0C37D64AFF7EE1719 /* AppleScriptPlayerProvider.swift */,
+				B7BD730E4B36712B72674600 /* AppleScriptRunner.swift */,
+				56B7B0326E9CB9DEABFD2B89 /* ArtworkFetcher.swift */,
+				AEE9ADEF4A9ABFB921A70A0E /* ArtworkPalette.swift */,
+				C668170F1DCEE3C253DEF8A5 /* NowPlayingController.swift */,
+				07166968E2927B9EB848CD61 /* NowPlayingProvider.swift */,
+			);
+			path = NowPlaying;
+			sourceTree = "<group>";
+		};
+		641F9698BA620E2CABA1C607 /* Overlay */ = {
+			isa = PBXGroup;
+			children = (
+				F247E63AEA72702D4CFAB090 /* OverlayState.swift */,
+				3C71236AF0F82A57E7FFED11 /* OverlayWindowController.swift */,
+			);
+			path = Overlay;
+			sourceTree = "<group>";
+		};
+		D5315D4D3455F012BCA802AE /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				0F489E21C05AC7C5172337B8 /* HotkeyRecorderView.swift */,
+				DB827D149D67CE7F184ADA79 /* LaunchAtLogin.swift */,
+				302BDDAD4BC7CAD3BB6CE794 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		A9AE47250539F37226E64AEE /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				17845468D684DA19C3560E9C /* Info.plist */,
+				C8CA8AEE71B5B2F713C78A52 /* LockTune.entitlements */,
+			);
+			path = Support;
+			sourceTree = "<group>";
+		};
+		401664EDA51CE9A2D3453A15 /* Triggers */ = {
+			isa = PBXGroup;
+			children = (
+				8F2F3FFA442E834C557A4BAD /* HotkeyManager.swift */,
+				08C726A59960D3FAAA56B6CB /* IdleMonitor.swift */,
+				D5DA4A5CE23D23E1AAB0D77B /* LockMonitor.swift */,
+			);
+			path = Triggers;
+			sourceTree = "<group>";
+		};
+		785A62F6730D915597ED2079 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				35284B0A39BDD741498F9B20 /* ArtworkBackgroundView.swift */,
+				A3B6494056084E004E8AD187 /* ArtworkView.swift */,
+				0992441A0F5EF7462E664405 /* ClockView.swift */,
+				E52D2C4FFB885D2B2250EC7B /* LockScreenView.swift */,
+				5586A67896B3626A102EA23A /* LyricsView.swift */,
+				6730C105E82777C0886F03CD /* PlayerControlsView.swift */,
+				F844E673C630CA18804AB9C1 /* ProgressBarView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		7617DB39707A26935F161905 /* LockTune */ = {
+			isa = PBXGroup;
+			children = (
+				267AEBE1BACFD8AB573455B5 /* App */,
+				5258596AD5CE26889CA09E0D /* Lyrics */,
+				252A1F0BDAA151DE9B55B524 /* NowPlaying */,
+				641F9698BA620E2CABA1C607 /* Overlay */,
+				D5315D4D3455F012BCA802AE /* Settings */,
+				A9AE47250539F37226E64AEE /* Support */,
+				401664EDA51CE9A2D3453A15 /* Triggers */,
+				785A62F6730D915597ED2079 /* Views */,
+			);
+			path = LockTune;
+			sourceTree = "<group>";
+		};
+		2B731CEFC6751AAE0EC69B98 = {
+			isa = PBXGroup;
+			children = (
+				7617DB39707A26935F161905 /* LockTune */,
+				86024CAD1E83101D97359D73 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		86024CAD1E83101D97359D73 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F5BF48AA40CAD7891EB709FC /* LockTune.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		42AEFBAE01D2DFD981F7DA7D /* LockTune */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D66C94C2C00D9C7C08D1FEEF /* Build configuration list for PBXNativeTarget "LockTune" */;
+			buildPhases = (
+				F2AB5FB218DA8B84623F4557 /* Sources */,
+				4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */,
+				55B558C7EF820E6E00E5993B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LockTune;
+			productName = LockTune;
+			productReference = F5BF48AA40CAD7891EB709FC /* LockTune.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		46F86FAA6BBF9AC94A7E4595 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					42AEFBAE01D2DFD981F7DA7D = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 5311DEDDB370EA96DBB233A8 /* Build configuration list for PBXProject "LockTune" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 2B731CEFC6751AAE0EC69B98;
+			productRefGroup = 86024CAD1E83101D97359D73 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				42AEFBAE01D2DFD981F7DA7D /* LockTune */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		55B558C7EF820E6E00E5993B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F2AB5FB218DA8B84623F4557 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7AF5DE1B6E0EC1EC5482161C /* AppCoordinator.swift in Sources */,
+				54E608732B57D245D59C38A6 /* AppSettings.swift in Sources */,
+				1585378BE45451239D57761F /* LockTuneApp.swift in Sources */,
+				D4A0402B6A9DF16684E82A85 /* LRCParser.swift in Sources */,
+				AE4F7B3DB17CA214054CD8B0 /* LyricsController.swift in Sources */,
+				4F5B3E7936907706F54D9C46 /* LyricsModels.swift in Sources */,
+				273D7DF7104CDCC2F9B6C108 /* LyricsService.swift in Sources */,
+				6B4C54B75E404BB1A119A678 /* AppleScriptPlayerProvider.swift in Sources */,
+				055FCAF7D48E65C806116C8F /* AppleScriptRunner.swift in Sources */,
+				FBC614764BADFD1806FAE298 /* ArtworkFetcher.swift in Sources */,
+				B8FF0F4E530508EDD4D18896 /* ArtworkPalette.swift in Sources */,
+				7F34FF2EED4EA22B445728B4 /* NowPlayingController.swift in Sources */,
+				0F48C3B6BD6CD7AB55B16D58 /* NowPlayingProvider.swift in Sources */,
+				D518E475A13F093B5340D366 /* OverlayState.swift in Sources */,
+				B4F8216295EDF718238417B7 /* OverlayWindowController.swift in Sources */,
+				325012A7C4C4ACA7E942C9F9 /* HotkeyRecorderView.swift in Sources */,
+				7AA3083D1D5F2BCB1365A5E4 /* LaunchAtLogin.swift in Sources */,
+				C333D0C8515CA3772E24D5CD /* SettingsView.swift in Sources */,
+				C9B0B76EA5843EB223BCB9FF /* HotkeyManager.swift in Sources */,
+				67FD3EDE74AB43D3DD439CA3 /* IdleMonitor.swift in Sources */,
+				DD060DB816A3001896D5828E /* LockMonitor.swift in Sources */,
+				2E0E7B9577C3C3CD67332874 /* ArtworkBackgroundView.swift in Sources */,
+				41DC3DBCEA5F30B3B2FD42D6 /* ArtworkView.swift in Sources */,
+				5ED30DB15F5E0811D27EAA81 /* ClockView.swift in Sources */,
+				FF02AEB0F1292D54E719CB53 /* LockScreenView.swift in Sources */,
+				713B9BEAA07898569E0C5C5C /* LyricsView.swift in Sources */,
+				2F4A04D54389C6BCF7BF6697 /* PlayerControlsView.swift in Sources */,
+				4D1A7CB23C063D98EC53C104 /* ProgressBarView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F6143EE2941E474EB4BAD052 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		36CFC301A717EE35561E9C33 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		6A79C94DB2EB7C79AF3592F5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = LockTune/Support/LockTune.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LockTune/Support/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.LockTune;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		68AFC219BD8EB07814E31001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = LockTune/Support/LockTune.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LockTune/Support/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.LockTune;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5311DEDDB370EA96DBB233A8 /* Build configuration list for PBXProject "LockTune" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F6143EE2941E474EB4BAD052 /* Debug */,
+				36CFC301A717EE35561E9C33 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D66C94C2C00D9C7C08D1FEEF /* Build configuration list for PBXNativeTarget "LockTune" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6A79C94DB2EB7C79AF3592F5 /* Debug */,
+				68AFC219BD8EB07814E31001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+}
