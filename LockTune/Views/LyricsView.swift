@@ -168,7 +168,7 @@ private struct LyricsStack: View {
             )
         }
         .onAppear { reveal() }
-        .onChange(of: revision) { reveal() }
+        .onChange(of: revision) { _ in reveal() }
     }
 
     private func reveal() {
@@ -247,11 +247,16 @@ private struct LyricLineView: View {
         guard let progress, progress.count == line.words.count else {
             return Text(line.text)
         }
-        var text = Text("")
-        for (word, value) in zip(line.words, progress) {
-            text = text + Text(word.text).foregroundStyle(.primary.opacity(0.38 + 0.62 * value))
+        if #available(macOS 14.0, *) {
+            var text = Text("")
+            for (word, value) in zip(line.words, progress) {
+                text = text + Text(word.text).foregroundStyle(.primary.opacity(0.38 + 0.62 * value))
+            }
+            return text
+        } else {
+            // Per-word colouring of Text needs macOS 14; light the whole line.
+            return Text(line.text)
         }
-        return text
     }
 }
 

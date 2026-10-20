@@ -228,7 +228,7 @@ final class Updater: ObservableObject {
         guard userInitiated || defaults.integer(forKey: Self.lastPromptedKey) != build else { return }
         defaults.set(build, forKey: Self.lastPromptedKey)
 
-        NSApp.activate()
+        NSApp.activateCompat()
         let alert = NSAlert()
         alert.messageText = "A new version of LockTune is available"
         alert.informativeText = "Build \(build) is ready (you have build \(currentBuild)). LockTune will download it, replace itself and restart."
@@ -240,7 +240,7 @@ final class Updater: ObservableObject {
     }
 
     private func showUpToDateAlert() {
-        NSApp.activate()
+        NSApp.activateCompat()
         let alert = NSAlert()
         alert.messageText = "LockTune is up to date"
         alert.informativeText = "You have the latest version, \(versionString)."
@@ -248,7 +248,7 @@ final class Updater: ObservableObject {
     }
 
     private func showFailureAlert(_ message: String) {
-        NSApp.activate()
+        NSApp.activateCompat()
         let alert = NSAlert()
         alert.messageText = "Update failed"
         alert.informativeText = message

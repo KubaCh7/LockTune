@@ -83,7 +83,7 @@ struct TransportButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: size, weight: .semibold))
-                .contentTransition(.symbolEffect(.replace))
+                .symbolReplaceTransition()
                 .frame(width: size * 1.6, height: size * 1.6)
                 // Mega Liquid Glass: every transport button is its own glass bubble.
                 .glassBackground(Circle(), onlyInMega: true)

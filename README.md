@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  macOS 14 or newer · Apple Silicon and Intel ·
+  macOS 12 or newer · Apple Silicon and Intel ·
   <a href="https://github.com/KubaCh7/LockTune/releases/latest">all files</a>
 </p>
 
@@ -25,7 +25,7 @@
 2. Otwórz `LockTune.dmg` i przeciągnij **LockTune** na folder **Applications**.
 3. Uruchom LockTune z folderu Aplikacje. Za pierwszym razem macOS zablokuje aplikację, bo nie ma płatnego podpisu Apple:
    - **macOS 15 lub nowszy:** wejdź w Ustawienia systemowe → Prywatność i ochrona, przewiń w dół i kliknij **Otwórz mimo to**.
-   - **macOS 14:** kliknij aplikację prawym przyciskiem → **Otwórz** → **Otwórz**.
+   - **macOS 12–14:** kliknij aplikację prawym przyciskiem → **Otwórz** → **Otwórz**.
 4. Gdy macOS zapyta, czy LockTune może sterować Spotify lub Music, kliknij **OK**.
 5. Włącz muzykę i zablokuj Maca (**⌃⌘Q** albo **⌃⌘L**). Widżet z muzyką pojawi się na ekranie blokady.
 
@@ -33,7 +33,7 @@
 
 ---
 
-LockTune is a macOS menu bar app (Swift + SwiftUI, macOS 14+) that puts an iPhone-style now-playing widget on the Mac's lock screen. It shows the album art, glass playback controls and Apple Music-style synced lyrics, with an optional full-screen artwork wallpaper and clock.
+LockTune is a macOS menu bar app (Swift + SwiftUI, macOS 12+) that puts an iPhone-style now-playing widget on the Mac's lock screen. It shows the album art, glass playback controls and Apple Music-style synced lyrics, with an optional full-screen artwork wallpaper and clock.
 
 It has no notch, Dynamic Island or menu-bar pill widget. The menu bar icon is only for settings.
 

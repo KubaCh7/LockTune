@@ -145,7 +145,7 @@ final class LockWidgetController {
             }
         case .preview:
             buildPreviewPanels()
-            NSApp.activate()
+            NSApp.activateCompat()
             previewPanels.first?.makeKeyAndOrderFront(nil)
         }
 
@@ -213,7 +213,7 @@ final class LockWidgetController {
     func makeInteractive() {
         guard presentation == .lockScreen else { return }
         lockPanels.forEach { $0.allowsKey = true }
-        NSApp.activate()
+        NSApp.activateCompat()
         lockPanels.first?.makeKeyAndOrderFront(nil)
     }
 
@@ -229,7 +229,7 @@ final class LockWidgetController {
         let root = LockWidgetView(overlay: overlay, player: player, lyrics: lyrics, settings: settings,
                                   onClose: { [weak self] in self?.hide() })
         let hosting = FirstMouseHostingView(rootView: root)
-        hosting.sizingOptions = []
+        if #available(macOS 13.0, *) { hosting.sizingOptions = [] }
         panel.contentView = hosting
         panel.keyHandler = { [weak self] event in
             MainActor.assumeIsolated { self?.handleKey(event) ?? false }

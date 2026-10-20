@@ -85,7 +85,7 @@ private struct StatusTab: View {
 
             Section("Diagnostics") {
                 ForEach(player.providers.map { $0.displayName }, id: \.self) { name in
-                    LabeledContent(name) {
+                    LabeledRow(name) {
                         Text(player.diagnostics[name] ?? "—")
                             .font(.system(.caption, design: .monospaced))
                             .textSelection(.enabled)
@@ -113,7 +113,7 @@ private struct StatusTab: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
+        .groupedFormStyle()
         .task {
             // Keep the checklist live while the window is open.
             while !Task.isCancelled {
@@ -217,6 +217,11 @@ private struct GeneralSettings: View {
                         }
                         launchAtLogin = LaunchAtLogin.isEnabled
                     }))
+                    .disabled(!LaunchAtLogin.isSupported)
+                if !LaunchAtLogin.isSupported {
+                    Text("On macOS 12 add LockTune under System Preferences → Users & Groups → Login Items.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 if let launchError {
                     Text(launchError).font(.caption).foregroundStyle(.red)
                 }
@@ -227,7 +232,7 @@ private struct GeneralSettings: View {
             }
 
             Section("Updates") {
-                LabeledContent("Installed version", value: updater.versionString)
+                LabeledRow("Installed version") { Text(updater.versionString).foregroundStyle(.secondary) }
                 Toggle("Check for updates automatically", isOn: $autoCheckUpdates)
                 HStack {
                     if let build = updater.availableBuild {
@@ -267,7 +272,7 @@ private struct GeneralSettings: View {
 
             Section("Keyboard shortcut") {
                 Toggle("Global shortcut", isOn: $settings.hotkeyEnabled)
-                LabeledContent("Lock screen now") {
+                LabeledRow("Lock screen now") {
                     HotkeyRecorderView(hotkey: $settings.hotkey) { recording in
                         recording ? coordinator.suspendHotkey() : coordinator.resumeHotkey()
                     }
@@ -287,7 +292,7 @@ private struct GeneralSettings: View {
                 }
             }
         }
-        .formStyle(.grouped)
+        .groupedFormStyle()
         .onAppear { launchAtLogin = LaunchAtLogin.isEnabled }
     }
 
@@ -497,7 +502,7 @@ private struct AppearanceSettings: View {
                 Button("Clear Lyrics Cache") { coordinator.lyrics.clearCache() }
             }
         }
-        .formStyle(.grouped)
+        .groupedFormStyle()
     }
 }
 
@@ -510,7 +515,7 @@ enum PresetFiles {
         panel.title = "Export LockTune Preset"
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = "LockTune Preset.json"
-        NSApp.activate()
+        NSApp.activateCompat()
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             let name = url.deletingPathExtension().lastPathComponent
@@ -525,7 +530,7 @@ enum PresetFiles {
         panel.title = "Import LockTune Preset"
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
-        NSApp.activate()
+        NSApp.activateCompat()
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             let name = try settings.importPreset(Data(contentsOf: url))

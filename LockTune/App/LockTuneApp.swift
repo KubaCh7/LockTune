@@ -11,24 +11,22 @@ struct LockTuneApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra {
-            MenuBarMenu(coordinator: AppCoordinator.shared,
-                        player: AppCoordinator.shared.nowPlaying,
-                        settings: AppCoordinator.shared.settings,
-                        updater: Updater.shared)
-        } label: {
-            Image(systemName: "music.note.house")
-        }
+        // The menu-bar item is an AppKit NSStatusItem (see StatusItemController),
+        // which works on macOS 12; SwiftUI's MenuBarExtra needs macOS 13.
+        // An app needs at least one scene, and this one never shows a window.
+        Settings { EmptyView() }
     }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let welcomeKey = "didShowWelcome2"
+    private var statusItem: StatusItemController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // LSUIElement = YES in Info.plist keeps us out of the Dock and ⌘⇥.
         AppCoordinator.shared.start()
         Updater.shared.start()
+        statusItem = StatusItemController()
 
         // First launch: show the status window so it's obvious the app runs
         // (on notched MacBooks the menu-bar icon can hide behind the notch).
@@ -45,45 +43,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// Contents of the menu-bar item.
-struct MenuBarMenu: View {
-    @ObservedObject var coordinator: AppCoordinator
-    @ObservedObject var player: NowPlayingController
-    @ObservedObject var settings: AppSettings
-    @ObservedObject var updater: Updater
+/// The ♪ menu-bar item and its menu (rebuilt each time it opens).
+@MainActor
+final class StatusItemController: NSObject, NSMenuDelegate {
+    private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    private let menu = NSMenu()
 
-    var body: some View {
-        if let track = player.track {
-            Text("\(player.isPlaying ? "▶︎" : "❚❚")  \(track.title) — \(track.artist)")
-        } else {
-            Text("Nothing playing")
-        }
-
-        Divider()
-
-        Button(lockTitle) { coordinator.afterMenuCloses { coordinator.lockNow() } }
-        Button("Preview Widget") { coordinator.afterMenuCloses { coordinator.togglePreview() } }
-
-        Divider()
-
-        Button("Status & Settings…") { SettingsWindowController.shared.show() }
-            .keyboardShortcut(",", modifiers: .command)
-
-        if let build = updater.availableBuild {
-            Button("Install Update (build \(build))…") { updater.installUpdate() }
-        } else {
-            Button("Check for Updates…") { Task { await updater.check(userInitiated: true) } }
-        }
-
-        Button("Quit LockTune") { NSApp.terminate(nil) }
-            .keyboardShortcut("q", modifiers: .command)
+    override init() {
+        super.init()
+        let image = NSImage(systemSymbolName: "music.note.house", accessibilityDescription: "LockTune")
+        image?.isTemplate = true
+        item.button?.image = image
+        menu.delegate = self
+        item.menu = menu
     }
 
-    private var lockTitle: String {
-        settings.hotkeyEnabled
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let coordinator = AppCoordinator.shared
+        let player = coordinator.nowPlaying
+        let settings = coordinator.settings
+        let updater = Updater.shared
+
+        let nowPlaying = player.track.map { "\(player.isPlaying ? "▶︎" : "❚❚")  \($0.title) — \($0.artist)" }
+            ?? "Nothing playing"
+        let header = NSMenuItem(title: nowPlaying, action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+        menu.addItem(.separator())
+
+        let lockTitle = settings.hotkeyEnabled
             ? "Lock Screen Now   \(settings.hotkey.displayString)"
             : "Lock Screen Now"
+        menu.addItem(ClosureMenuItem(lockTitle) { coordinator.afterMenuCloses { coordinator.lockNow() } })
+        menu.addItem(ClosureMenuItem("Preview Widget") { coordinator.afterMenuCloses { coordinator.togglePreview() } })
+        menu.addItem(.separator())
+
+        menu.addItem(ClosureMenuItem("Status & Settings…", key: ",") { SettingsWindowController.shared.show() })
+        if let build = updater.availableBuild {
+            menu.addItem(ClosureMenuItem("Install Update (build \(build))…") { updater.installUpdate() })
+        } else {
+            menu.addItem(ClosureMenuItem("Check for Updates…") { Task { await updater.check(userInitiated: true) } })
+        }
+        menu.addItem(.separator())
+        menu.addItem(ClosureMenuItem("Quit LockTune", key: "q") { NSApp.terminate(nil) })
     }
+}
+
+/// NSMenuItem that runs a closure.
+final class ClosureMenuItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(_ title: String, key: String = "", handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(fire), keyEquivalent: key)
+        target = self
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) is not used")
+    }
+
+    @objc private func fire() { handler() }
 }
 
 /// Our own settings window (the SwiftUI `Settings` scene can't be opened from
@@ -108,7 +129,7 @@ final class SettingsWindowController {
             window.center()
             self.window = window
         }
-        NSApp.activate()
+        NSApp.activateCompat()
         window?.makeKeyAndOrderFront(nil)
     }
 }

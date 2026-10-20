@@ -3,12 +3,12 @@
 name: LockTune
 options:
   deploymentTarget:
-    macOS: "14.0"
+    macOS: "12.0"
   createIntermediateGroups: true
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    MACOSX_DEPLOYMENT_TARGET: "12.0"
 targets:
   LockTune:
     type: application

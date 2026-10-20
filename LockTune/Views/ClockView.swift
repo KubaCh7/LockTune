@@ -16,8 +16,8 @@ struct ClockView: View {
                     .opacity(0.92)
                 Text(time)
                     .font(.system(size: size, weight: weight.fontWeight, design: style.design))
-                    .contentTransition(.numericText())
-                    .animation(.smooth(duration: 0.5), value: time)
+                    .numericTextTransition()
+                    .animation(.easeInOut(duration: 0.5), value: time)
             }
             .lineLimit(1)
             .fixedSize()

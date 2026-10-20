@@ -31,6 +31,7 @@
 		325012A7C4C4ACA7E942C9F9 /* HotkeyRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F489E21C05AC7C5172337B8 /* HotkeyRecorderView.swift */; };
 		7AA3083D1D5F2BCB1365A5E4 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB827D149D67CE7F184ADA79 /* LaunchAtLogin.swift */; };
 		C333D0C8515CA3772E24D5CD /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 302BDDAD4BC7CAD3BB6CE794 /* SettingsView.swift */; };
+		4E32630E5ACBF21C8BA55210 /* Compat.swift in Sources */ = {isa = PBXBuildFile; fileRef = C49883BD08A40AB9C051DAA4 /* Compat.swift */; };
 		AB2B33E2E5E0C6CE705E2141 /* SelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D2C7A968CE1817FC85839F5 /* SelfTest.swift */; };
 		C9B0B76EA5843EB223BCB9FF /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F2F3FFA442E834C557A4BAD /* HotkeyManager.swift */; };
 		67FD3EDE74AB43D3DD439CA3 /* IdleMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C726A59960D3FAAA56B6CB /* IdleMonitor.swift */; };
@@ -71,6 +72,7 @@
 		0F489E21C05AC7C5172337B8 /* HotkeyRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyRecorderView.swift; sourceTree = "<group>"; };
 		DB827D149D67CE7F184ADA79 /* LaunchAtLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLogin.swift; sourceTree = "<group>"; };
 		302BDDAD4BC7CAD3BB6CE794 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C49883BD08A40AB9C051DAA4 /* Compat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Compat.swift; sourceTree = "<group>"; };
 		17845468D684DA19C3560E9C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C8CA8AEE71B5B2F713C78A52 /* LockTune.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LockTune.entitlements; sourceTree = "<group>"; };
 		9D2C7A968CE1817FC85839F5 /* SelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelfTest.swift; sourceTree = "<group>"; };
@@ -167,6 +169,7 @@
 		A9AE47250539F37226E64AEE /* Support */ = {
 			isa = PBXGroup;
 			children = (
+				C49883BD08A40AB9C051DAA4 /* Compat.swift */,
 				17845468D684DA19C3560E9C /* Info.plist */,
 				C8CA8AEE71B5B2F713C78A52 /* LockTune.entitlements */,
 				9D2C7A968CE1817FC85839F5 /* SelfTest.swift */,
@@ -323,6 +326,7 @@
 				325012A7C4C4ACA7E942C9F9 /* HotkeyRecorderView.swift in Sources */,
 				7AA3083D1D5F2BCB1365A5E4 /* LaunchAtLogin.swift in Sources */,
 				C333D0C8515CA3772E24D5CD /* SettingsView.swift in Sources */,
+				4E32630E5ACBF21C8BA55210 /* Compat.swift in Sources */,
 				AB2B33E2E5E0C6CE705E2141 /* SelfTest.swift in Sources */,
 				C9B0B76EA5843EB223BCB9FF /* HotkeyManager.swift in Sources */,
 				67FD3EDE74AB43D3DD439CA3 /* IdleMonitor.swift in Sources */,
@@ -356,7 +360,7 @@
 					"DEBUG=1",
 					"$(inherited)",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -375,7 +379,7 @@
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -400,7 +404,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.LockTune;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -426,7 +430,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.LockTune;
 				PRODUCT_NAME = "$(TARGET_NAME)";

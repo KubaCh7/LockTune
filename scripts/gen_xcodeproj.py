@@ -82,7 +82,7 @@ common_proj = {
     "CLANG_ENABLE_OBJC_ARC": "YES",
     "ENABLE_STRICT_OBJC_MSGSEND": "YES",
     "GCC_C_LANGUAGE_STANDARD": "gnu17",
-    "MACOSX_DEPLOYMENT_TARGET": "14.0",
+    "MACOSX_DEPLOYMENT_TARGET": "12.0",
     "SDKROOT": "macosx",
     "SWIFT_VERSION": "5.0",
 }
@@ -113,7 +113,7 @@ tgt = {
     "GENERATE_INFOPLIST_FILE": "NO",
     "INFOPLIST_FILE": f"{name}/Support/Info.plist",
     "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/../Frameworks"],
-    "MACOSX_DEPLOYMENT_TARGET": "14.0",
+    "MACOSX_DEPLOYMENT_TARGET": "12.0",
     "MARKETING_VERSION": "1.0",
     "PRODUCT_BUNDLE_IDENTIFIER": "com.example.LockTune",
     "PRODUCT_NAME": "$(TARGET_NAME)",

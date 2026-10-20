@@ -35,7 +35,7 @@ struct LockWidgetView: View {
         .environment(\.colorScheme, isLightBackground ? .light : .dark)
         .environment(\.frameInterval, settings.frameInterval)
         .environment(\.glassLevel, settings.glassLevel)
-        .focusEffectDisabled()
+        .focusEffectDisabledCompat()
     }
 
     private func widget(size: CGSize) -> some View {
@@ -315,7 +315,7 @@ private struct ToolbarButton: View {
                 .frame(width: 34, height: 34)
                 .glassBackground(Circle())
                 .overlay(Circle().strokeBorder(.white.opacity(isOn ? 0.6 : 0), lineWidth: 1))
-                .contentTransition(.symbolEffect(.replace))
+                .symbolReplaceTransition()
         }
         .buttonStyle(PressableButtonStyle())
         .help(help)
