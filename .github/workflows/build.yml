@@ -40,7 +40,10 @@ jobs:
         run: grep -E "error:" -A3 build.log | head -200 || true
 
       - name: Install Spotify (so its AppleScript dictionary can be tested)
-        run: brew install --cask spotify || echo "Spotify install failed; its checks will be skipped"
+        run: |
+          brew install --cask spotify || echo "Spotify install failed; its checks will be skipped"
+          # Register it with Launch Services so the app can find it by bundle id.
+          /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/Spotify.app || true
 
       - name: Self-test on this Mac
         run: |

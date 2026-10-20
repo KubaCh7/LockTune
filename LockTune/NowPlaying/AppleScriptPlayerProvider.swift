@@ -38,23 +38,23 @@ class AppleScriptPlayerProvider: NowPlayingProvider {
 
     // MARK: Polling
 
+    // Note: variable names must avoid AppleScript reserved words — e.g. "st",
+    // "nd", "rd", "th" are ordinal suffixes ("1st"), so `set st to …` won't compile.
     private lazy var snapshotScript = """
     tell \(tellTarget)
         with timeout of 2 seconds
-            -- Compare against the enum instead of coercing it to text:
-            -- coercion can yield raw codes («constant ****kPSP») in some setups.
-            set st to "stopped"
-            if player state is playing then set st to "playing"
-            if player state is paused then set st to "paused"
-            set pos to 0
-            set tid to ""
+            set stateName to "stopped"
+            if player state is playing then set stateName to "playing"
+            if player state is paused then set stateName to "paused"
+            set playerPos to 0
+            set trackRef to ""
             try
-                set pos to player position
+                set playerPos to player position
             end try
             try
-                set tid to \(trackIDExpression)
+                set trackRef to \(trackIDExpression)
             end try
-            return {st, pos, tid}
+            return {stateName, playerPos, trackRef}
         end timeout
     end tell
     """
@@ -62,24 +62,24 @@ class AppleScriptPlayerProvider: NowPlayingProvider {
     private lazy var trackScript = """
     tell \(tellTarget)
         with timeout of 3 seconds
-            set tid to \(trackIDExpression)
-            set nm to ""
-            set ar to ""
-            set al to ""
-            set du to 0
+            set trackRef to \(trackIDExpression)
+            set trackName to ""
+            set artistName to ""
+            set albumName to ""
+            set trackLength to 0
             try
-                set nm to name of current track
+                set trackName to name of current track
             end try
             try
-                set ar to artist of current track
+                set artistName to artist of current track
             end try
             try
-                set al to album of current track
+                set albumName to album of current track
             end try
             try
-                set du to \(durationExpression)
+                set trackLength to \(durationExpression)
             end try
-            return {tid, nm, ar, al, du}
+            return {trackRef, trackName, artistName, albumName, trackLength}
         end timeout
     end tell
     """
