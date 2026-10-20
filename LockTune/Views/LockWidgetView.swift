@@ -100,92 +100,111 @@ struct LockWidgetView: View {
     }
 
     // MARK: Widget layout
+    //
+    // Vertical zones (fractions of the screen height):
+    //   0.00–0.22  clock (system or ours)
+    //   0.22–0.70  lyrics — never lower: the user name and "Touch ID or Enter
+    //              Password" sit around 0.75–0.85 and macOS draws them above
+    //              everything, even our wallpaper
+    //   artwork + controls may go down to the height chosen in Settings
 
-    /// The widget's area: below the lock-screen clock, ending just above the
-    /// user name / password field (adjustable in Settings).
-    private struct Area {
-        var top: CGFloat
-        var height: CGFloat
+    private static let topFraction: CGFloat = 0.22
+    private static let lyricsBottomFraction: CGFloat = 0.70
+
+    private func top(_ size: CGSize) -> CGFloat { size.height * Self.topFraction }
+    /// Bottom edge for artwork + controls (user setting).
+    private func widgetBottom(_ size: CGSize) -> CGFloat {
+        max(size.height * (1 - settings.activeBottomInset), top(size) + size.height * 0.25)
     }
-
-    private func widgetArea(_ size: CGSize) -> Area {
-        let top = size.height * 0.22
-        let bottom = size.height * (1 - settings.activeBottomInset)
-        return Area(top: top, height: max(bottom - top, size.height * 0.2))
+    /// Bottom edge for lyrics (fixed, safe).
+    private func lyricsBottom(_ size: CGSize) -> CGFloat {
+        min(widgetBottom(size), size.height * Self.lyricsBottomFraction)
     }
 
     @ViewBuilder
     private func content(size: CGSize) -> some View {
-        let area = widgetArea(size)
-        // The area already ends above the user name / "Touch ID or Enter Password".
-        let height = area.height
         Group {
             if player.hasTrack {
                 if showsLyrics {
-                    lyricsLayout(size: size, height: height)
+                    switch settings.lyricsPosition {
+                    case .right, .left: sideBySideLayout(size: size)
+                    case .center: centerLyricsLayout(size: size)
+                    }
                 } else {
-                    playerLayout(size: size, height: height)
+                    playerLayout(size: size)
                 }
             }
         }
-        .frame(width: size.width, height: height, alignment: .bottom)
-        .offset(y: area.top)
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
         .shadow(color: drawsBackground ? .clear : .black.opacity(0.35), radius: 18, y: 6)
     }
 
-    private func playerLayout(size: CGSize, height: CGFloat) -> some View {
+    /// Artwork + controls, centred, ending at the chosen height.
+    private func playerLayout(size: CGSize) -> some View {
+        let height = widgetBottom(size) - top(size)
         let controlsHeight: CGFloat = 150
-        // 100 % is a medium size, so the size slider can both shrink and grow
-        // the artwork (up to the space left above the controls).
+        // 100 % is a medium size; the slider grows it up to the free space.
         let base = min(size.height * 0.2, size.width * 0.2)
-        let art = max(90, min(base * settings.activeArtworkScale, height - controlsHeight - 24, size.width * 0.4))
+        let art = max(90, min(base * settings.activeArtworkScale, height - controlsHeight - 24, size.width * 0.5))
         return VStack(spacing: 20) {
             artwork(side: art)
             controls(width: max(art * 0.95, 300))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .frame(width: size.width, height: height, alignment: .bottom)
+        .offset(y: top(size))
     }
 
-    @ViewBuilder
-    private func lyricsLayout(size: CGSize, height: CGFloat) -> some View {
-        switch settings.lyricsPosition {
-        case .right, .left:
-            let base = min(size.height * 0.17, size.width * 0.16)
-            let art = max(90, min(base * settings.activeArtworkScale, height - 170, size.width * 0.3))
-            let column = VStack(spacing: 18) {
-                artwork(side: art)
-                controls(width: max(art, 300))
-            }
-            .frame(width: max(art, 300))
+    /// Screen split in two halves: artwork + controls fill one half (as big as
+    /// the size slider allows), lyrics sit in the other half above the user name.
+    private func sideBySideLayout(size: CGSize) -> some View {
+        let half = size.width / 2
+        let columnHeight = widgetBottom(size) - top(size)
+        let lyricsHeight = lyricsBottom(size) - top(size)
+        let base = min(size.height * 0.2, size.width * 0.16)
+        let art = max(90, min(base * settings.activeArtworkScale, columnHeight - 170, half * 0.86))
+        let lyricsOnRight = settings.lyricsPosition == .right
 
-            let lyricsColumn = lyricsView(alignment: .leading)
-                .frame(width: size.width * 0.4, height: height)
-                .transition(.opacity.combined(with: .offset(x: settings.lyricsPosition == .right ? 40 : -40)))
-
-            HStack(alignment: .center, spacing: size.width * 0.05) {
-                if settings.lyricsPosition == .right {
-                    column
-                    lyricsColumn
-                } else {
-                    lyricsColumn
-                    column
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-        case .center:
-            VStack(spacing: 16) {
-                lyricsView(alignment: .center)
-                    .frame(width: min(size.width * 0.62, 900))
-                    .frame(maxHeight: .infinity)
-                    .transition(.opacity)
-                HStack(spacing: 16) {
-                    artwork(side: 76 * settings.activeArtworkScale)
-                    controls(width: 340)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        let artColumn = VStack(spacing: 18) {
+            artwork(side: art)
+            controls(width: max(min(art, half * 0.86), 300))
         }
+        .frame(width: half, height: columnHeight)
+
+        let lyricsColumn = lyricsView(alignment: .leading)
+            .frame(width: half * 0.82, height: lyricsHeight)
+            .frame(width: half, height: columnHeight, alignment: lyricsOnRight ? .topLeading : .topTrailing)
+            .transition(.opacity.combined(with: .offset(x: lyricsOnRight ? 40 : -40)))
+
+        return HStack(spacing: 0) {
+            if lyricsOnRight {
+                artColumn
+                lyricsColumn
+            } else {
+                lyricsColumn
+                artColumn
+            }
+        }
+        .frame(width: size.width, height: columnHeight, alignment: .top)
+        .offset(y: top(size))
+    }
+
+    /// Big centred lyrics, a small artwork + controls row underneath — all
+    /// above the user name.
+    private func centerLyricsLayout(size: CGSize) -> some View {
+        let rowHeight: CGFloat = 150
+        let bottom = min(widgetBottom(size), size.height * 0.74)
+        let lyricsHeight = max(160, bottom - top(size) - rowHeight - 16)
+        return VStack(spacing: 16) {
+            lyricsView(alignment: .center)
+                .frame(width: min(size.width * 0.62, 900), height: lyricsHeight)
+                .transition(.opacity)
+            HStack(spacing: 16) {
+                artwork(side: min(76 * settings.activeArtworkScale, rowHeight))
+                controls(width: 340)
+            }
+        }
+        .frame(width: size.width, alignment: .top)
+        .offset(y: top(size))
     }
 
     private func lyricsView(alignment: LyricsAlignment) -> some View {
@@ -202,8 +221,8 @@ struct LockWidgetView: View {
     private func artwork(side: CGFloat) -> some View {
         let mega = settings.glassLevel == .mega
         return ArtworkView(image: player.artwork, token: player.artworkToken, isPlaying: player.isPlaying)
-            // Mega Liquid Glass: the artwork sits in a thick glass frame.
-            .padding(mega ? max(8, side * 0.045) : 0)
+            // Mega Liquid Glass: the artwork sits in a thin glass frame.
+            .padding(mega ? min(10, max(5, side * 0.025)) : 0)
             .glassBackground(RoundedRectangle(cornerRadius: side * 0.09, style: .continuous), onlyInMega: true)
             .matchedGeometryEffect(id: "artwork", in: namespace)
             .frame(width: side, height: side)

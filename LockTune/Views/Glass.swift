@@ -64,9 +64,19 @@ struct GlassBackground<S: InsettableShape>: ViewModifier {
     private func liquid(_ content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(macOS 26.0, *) {
-            content
-                .glassEffect(level == .mega ? .clear.interactive() : .regular.interactive(), in: shape)
-                .overlay { if level == .mega { rim(strength: 0.7) } }
+            if level == .mega {
+                // Full glass (the clear variant looked washed out over the lock
+                // screen) plus a light sheen, a bright rim and depth.
+                content
+                    .background(shape.fill(LinearGradient(colors: [.white.opacity(0.14), .white.opacity(0.02)],
+                                                          startPoint: .top, endPoint: .bottom)))
+                    .glassEffect(.regular.tint(.white.opacity(0.06)).interactive(), in: shape)
+                    .overlay(rim(strength: 0.9))
+                    .shadow(color: .black.opacity(0.25), radius: 20, y: 10)
+            } else {
+                content
+                    .glassEffect(.regular.interactive(), in: shape)
+            }
         } else {
             imitation(content)
         }

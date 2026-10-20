@@ -177,15 +177,18 @@ final class AppSettings: ObservableObject {
     /// Lyrics text size multiplier (0.6 … 1.4).
     @Published var lyricsScale: Double { didSet { defaults.set(lyricsScale, forKey: Key.lyricsScale) } }
 
-    /// The user name and "Touch ID or Enter Password" sit around 75–85 % down
-    /// the screen and macOS draws them above everything else, even our
-    /// wallpaper — so in both modes the widget must end above ~72 %.
-    static let minBottomInset = 0.28
-    static let minPlainBottomInset = minBottomInset
+    /// Over the normal lock screen the widget stays above the user name and
+    /// "Touch ID or Enter Password" (around 75–85 % down). With the artwork
+    /// wallpaper the artwork may go lower; lyrics are kept above ~70 % in both
+    /// modes by the layout itself.
+    static let minPlainBottomInset = 0.28
+    static let minWallpaperBottomInset = 0.04
+    static let maxArtworkScale = 2.5
 
     /// Layout values for the current mode.
     var activeBottomInset: Double {
-        max(lockWallpaper ? widgetBottomInset : plainBottomInset, Self.minBottomInset)
+        lockWallpaper ? max(widgetBottomInset, Self.minWallpaperBottomInset)
+                      : max(plainBottomInset, Self.minPlainBottomInset)
     }
     var activeArtworkScale: Double { lockWallpaper ? artworkScale : plainArtworkScale }
     /// How many seconds early lyrics are highlighted (0 … 1.5).
@@ -203,7 +206,7 @@ final class AppSettings: ObservableObject {
             Key.lockWidgetEnabled: true,
             Key.lockWallpaper: true,
             Key.lyricsEnabled: true,
-            Key.widgetBottomInset: 0.30,
+            Key.widgetBottomInset: 0.12,
             Key.plainBottomInset: 0.30,
             Key.plainArtworkScale: 1.0,
             Key.animationFPS: 60,
@@ -228,18 +231,18 @@ final class AppSettings: ObservableObject {
         backgroundStyle = defaults.string(forKey: Key.backgroundStyle).flatMap(BackgroundStyle.init(rawValue:)) ?? .blurred
         lyricsPosition = defaults.string(forKey: Key.lyricsPosition).flatMap(LyricsPosition.init(rawValue:)) ?? .right
         // Layout v2 moved everything higher: drop positions saved by older builds.
-        if defaults.integer(forKey: Key.layoutVersion) < 2 {
-            defaults.removeObject(forKey: Key.widgetBottomInset)
-            defaults.removeObject(forKey: Key.plainBottomInset)
-            defaults.set(2, forKey: Key.layoutVersion)
-        }
-        widgetBottomInset = min(max(defaults.double(forKey: Key.widgetBottomInset), Self.minBottomInset), 0.6)
+        let layoutVersion = defaults.integer(forKey: Key.layoutVersion)
+        if layoutVersion < 2 { defaults.removeObject(forKey: Key.plainBottomInset) }
+        // Layout v3: wallpaper mode may go low again (lyrics have their own limit).
+        if layoutVersion < 3 { defaults.removeObject(forKey: Key.widgetBottomInset) }
+        defaults.set(3, forKey: Key.layoutVersion)
+        widgetBottomInset = min(max(defaults.double(forKey: Key.widgetBottomInset), Self.minWallpaperBottomInset), 0.6)
         keepDisplayAwake = defaults.bool(forKey: Key.keepDisplayAwake)
         awakeDurationIndex = min(max(defaults.integer(forKey: Key.awakeDurationIndex), 0), Self.awakeDurations.count - 1)
         wordByWord = defaults.bool(forKey: Key.wordByWord)
-        artworkScale = min(max(defaults.double(forKey: Key.artworkScale), 0.6), 1.6)
+        artworkScale = min(max(defaults.double(forKey: Key.artworkScale), 0.6), Self.maxArtworkScale)
         plainBottomInset = min(max(defaults.double(forKey: Key.plainBottomInset), Self.minPlainBottomInset), 0.6)
-        plainArtworkScale = min(max(defaults.double(forKey: Key.plainArtworkScale), 0.6), 1.6)
+        plainArtworkScale = min(max(defaults.double(forKey: Key.plainArtworkScale), 0.6), Self.maxArtworkScale)
         glassLevel = defaults.string(forKey: Key.glassLevel).flatMap(GlassLevel.init(rawValue:)) ?? .normal
         lyricsScale = min(max(defaults.double(forKey: Key.lyricsScale), 0.6), 1.4)
         let fps = defaults.integer(forKey: Key.animationFPS)

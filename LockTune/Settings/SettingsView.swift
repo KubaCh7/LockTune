@@ -338,7 +338,7 @@ private struct AppearanceSettings: View {
     private func sizeSlider(_ value: Binding<Double>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Artwork size: \(Int((value.wrappedValue * 100).rounded())) %")
-            Slider(value: value, in: 0.6...1.6, step: 0.05) {
+            Slider(value: value, in: 0.6...AppSettings.maxArtworkScale, step: 0.05) {
                 EmptyView()
             } minimumValueLabel: {
                 Image(systemName: "photo").font(.caption)
@@ -363,7 +363,7 @@ private struct AppearanceSettings: View {
             Section {
                 heightSlider(Binding(get: { 1 - settings.widgetBottomInset },
                                      set: { settings.widgetBottomInset = 1 - $0 }),
-                             range: 0.4...(1 - AppSettings.minBottomInset))
+                             range: 0.4...(1 - AppSettings.minWallpaperBottomInset))
                 sizeSlider($settings.artworkScale)
             } header: {
                 modeHeader("With artwork wallpaper", inUse: settings.lockWallpaper)
@@ -374,7 +374,7 @@ private struct AppearanceSettings: View {
                                      set: { settings.plainBottomInset = 1 - $0 }),
                              range: 0.4...(1 - AppSettings.minPlainBottomInset))
                 sizeSlider($settings.plainArtworkScale)
-                Text("In both modes the lowest position keeps the widget above your name and “Touch ID or Enter Password”.")
+                Text("Here the lowest position keeps the widget above your name and “Touch ID or Enter Password”. Lyrics always stay above them in both modes.")
                     .font(.caption).foregroundStyle(.secondary)
             } header: {
                 modeHeader("Without wallpaper (normal lock screen)", inUse: !settings.lockWallpaper)
@@ -391,7 +391,7 @@ private struct AppearanceSettings: View {
 
             Section {
                 Button("Reset Layout to Defaults") {
-                    settings.widgetBottomInset = 0.30
+                    settings.widgetBottomInset = 0.12
                     settings.artworkScale = 1.6
                     settings.plainBottomInset = 0.30
                     settings.plainArtworkScale = 1.0
