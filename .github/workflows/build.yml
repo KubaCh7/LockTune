@@ -10,6 +10,11 @@ on:
     paths-ignore:
       - '**.md'
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Publish a versioned release, e.g. 1.0 (leave empty for a normal build)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -32,7 +37,10 @@ jobs:
         run: |
           set -o pipefail
           # v1.2 tag → 1.2; normal pushes keep the current version number.
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then MARKETING_VERSION="${GITHUB_REF_NAME#v}"; else MARKETING_VERSION="1.0"; fi
+          RELEASE_VERSION="${{ github.event.inputs.release_version }}"
+          if [[ -n "$RELEASE_VERSION" ]]; then MARKETING_VERSION="$RELEASE_VERSION"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then MARKETING_VERSION="${GITHUB_REF_NAME#v}"
+          else MARKETING_VERSION="1.0"; fi
           echo "Version $MARKETING_VERSION (build ${{ github.run_number }})"
           xcodebuild \
             -project LockTune.xcodeproj \
@@ -95,16 +103,24 @@ jobs:
             --title "LockTune – build ${{ github.run_number }}" \
             --notes "Download **LockTune.dmg**, open it and drag LockTune into Applications. First launch: right-click → Open (or System Settings → Privacy & Security → Open Anyway), because the app isn't notarized. Built from ${{ github.sha }}."
 
-      - name: Publish versioned release (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
+      # Versioned release: from a v* tag push, or from "Run workflow" with
+      # release_version set (GitHub creates the v<version> tag itself).
+      - name: Publish versioned release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_version != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          NOTES=".github/release-notes/${GITHUB_REF_NAME}.md"
+          if [[ -n "${{ github.event.inputs.release_version }}" ]]; then
+            TAG="v${{ github.event.inputs.release_version }}"
+          else
+            TAG="$GITHUB_REF_NAME"
+          fi
+          VERSION="${TAG#v}"
+          NOTES=".github/release-notes/${TAG}.md"
           [ -f "$NOTES" ] || NOTES=/dev/null
-          gh release delete "$GITHUB_REF_NAME" --yes || true
-          gh release create "$GITHUB_REF_NAME" LockTune.dmg LockTune-app.zip version.json \
+          gh release delete "$TAG" --yes || true
+          gh release create "$TAG" LockTune.dmg LockTune-app.zip version.json \
+            --target "$GITHUB_SHA" \
             --title "LockTune $VERSION" \
             --notes-file "$NOTES" \
             --latest
