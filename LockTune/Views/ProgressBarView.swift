@@ -6,11 +6,12 @@ struct ProgressBarView: View {
     @ObservedObject var player: NowPlayingController
     @State private var scrubPosition: TimeInterval?
     @State private var isHovering = false
+    @Environment(\.frameInterval) private var frameInterval
 
     private var isActive: Bool { isHovering || scrubPosition != nil }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 0.1, paused: !player.isPlaying || scrubPosition != nil)) { context in
+        TimelineView(.animation(minimumInterval: frameInterval, paused: !player.isPlaying || scrubPosition != nil)) { context in
             let duration = player.duration
             let position = scrubPosition ?? player.position(at: context.date)
             let fraction = duration > 0 ? min(max(position / duration, 0), 1) : 0

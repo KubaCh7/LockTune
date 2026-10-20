@@ -33,6 +33,7 @@ struct LockWidgetView: View {
         .ignoresSafeArea()
         .foregroundStyle(textColor)
         .environment(\.colorScheme, isLightBackground ? .light : .dark)
+        .environment(\.frameInterval, settings.frameInterval)
         .focusEffectDisabled()
     }
 

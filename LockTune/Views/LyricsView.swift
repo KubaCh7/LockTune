@@ -59,11 +59,12 @@ private struct SyncedLyricsView: View {
     let wordByWord: Bool
     /// Lines are highlighted slightly early, as Apple Music does (adjustable).
     let lead: TimeInterval
+    @Environment(\.frameInterval) private var frameInterval
 
     var body: some View {
         // `player` is observed, so a seek while paused (which bumps
         // `timelineRevision`) re-renders this even though the timeline is paused.
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !player.isPlaying)) { context in
+        TimelineView(.animation(minimumInterval: frameInterval, paused: !player.isPlaying)) { context in
             let time = player.position(at: context.date) + lead
             LyricsStack(lines: lines,
                         activeIndex: LRCParser.activeIndex(in: lines, at: time),
@@ -252,9 +253,10 @@ private struct LyricLineView: View {
 struct InstrumentalDots: View {
     let isActive: Bool
     var dotSize: CGFloat = 12
+    @Environment(\.frameInterval) private var frameInterval
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isActive)) { context in
+        TimelineView(.animation(minimumInterval: frameInterval, paused: !isActive)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             HStack(spacing: dotSize * 0.7) {
                 ForEach(0..<3, id: \.self) { k in

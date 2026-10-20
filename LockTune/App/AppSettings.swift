@@ -81,6 +81,19 @@ enum PreferredSource: String, CaseIterable, Identifiable {
     }
 }
 
+/// Frame interval used by the timeline-driven animations (drifting
+/// background, lyrics, progress bar). Set once at the widget's root.
+private struct FrameIntervalKey: EnvironmentKey {
+    static let defaultValue: Double = 1.0 / 60
+}
+
+extension EnvironmentValues {
+    var frameInterval: Double {
+        get { self[FrameIntervalKey.self] }
+        set { self[FrameIntervalKey.self] = newValue }
+    }
+}
+
 /// User preferences, persisted in UserDefaults.
 final class AppSettings: ObservableObject {
     private enum Key {
@@ -101,6 +114,7 @@ final class AppSettings: ObservableObject {
         static let artworkScale = "artworkScale"
         static let plainBottomInset = "plainBottomInset"
         static let plainArtworkScale = "plainArtworkScale"
+        static let animationFPS = "animationFPS"
         static let lyricsLead = "lyricsLead"
         static let lyricsEnabled = "lyricsEnabled"
         static let preferredSource = "preferredSource"
@@ -149,6 +163,11 @@ final class AppSettings: ObservableObject {
     @Published var plainBottomInset: Double { didSet { defaults.set(plainBottomInset, forKey: Key.plainBottomInset) } }
     @Published var plainArtworkScale: Double { didSet { defaults.set(plainArtworkScale, forKey: Key.plainArtworkScale) } }
 
+    /// 30, 60 or 120 frames per second for the continuous animations.
+    @Published var animationFPS: Int { didSet { defaults.set(animationFPS, forKey: Key.animationFPS) } }
+    static let fpsOptions = [30, 60, 120]
+    var frameInterval: Double { 1.0 / Double(max(animationFPS, 1)) }
+
     /// Over the normal lock screen the widget must stay above the user name
     /// and the "Touch ID or Enter Password" hint (they sit around 75–85 % down).
     static let minPlainBottomInset = 0.27
@@ -176,6 +195,7 @@ final class AppSettings: ObservableObject {
             Key.widgetBottomInset: 0.12,
             Key.plainBottomInset: 0.29,
             Key.plainArtworkScale: 1.0,
+            Key.animationFPS: 60,
             Key.keepDisplayAwake: true,
             Key.awakeDurationIndex: 9,
             Key.wordByWord: true,
@@ -202,6 +222,8 @@ final class AppSettings: ObservableObject {
         artworkScale = min(max(defaults.double(forKey: Key.artworkScale), 0.6), 1.6)
         plainBottomInset = min(max(defaults.double(forKey: Key.plainBottomInset), Self.minPlainBottomInset), 0.6)
         plainArtworkScale = min(max(defaults.double(forKey: Key.plainArtworkScale), 0.6), 1.6)
+        let fps = defaults.integer(forKey: Key.animationFPS)
+        animationFPS = Self.fpsOptions.contains(fps) ? fps : 60
         lyricsLead = min(max(defaults.double(forKey: Key.lyricsLead), 0), 1.5)
         lyricsEnabled = defaults.bool(forKey: Key.lyricsEnabled)
         preferredSource = defaults.string(forKey: Key.preferredSource).flatMap(PreferredSource.init(rawValue:)) ?? .automatic

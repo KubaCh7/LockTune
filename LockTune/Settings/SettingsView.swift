@@ -289,6 +289,19 @@ private struct AppearanceSettings: View {
         }
     }
 
+    private func modeHeader(_ title: String, inUse: Bool) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+            if inUse {
+                Text("IN USE")
+                    .font(.system(size: 9, weight: .bold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.accentColor.opacity(0.25)))
+            }
+        }
+    }
+
     private func sizeSlider(_ value: Binding<Double>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Artwork size: \(Int((value.wrappedValue * 100).rounded())) %")
@@ -314,23 +327,34 @@ private struct AppearanceSettings: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            Section("With artwork wallpaper") {
+            Section {
                 heightSlider(Binding(get: { 1 - settings.widgetBottomInset },
                                      set: { settings.widgetBottomInset = 1 - $0 }),
                              range: 0.4...0.95)
                 sizeSlider($settings.artworkScale)
+            } header: {
+                modeHeader("With artwork wallpaper", inUse: settings.lockWallpaper)
             }
-            .opacity(settings.lockWallpaper ? 1 : 0.6)
 
-            Section("Without wallpaper (normal lock screen)") {
+            Section {
                 heightSlider(Binding(get: { 1 - settings.plainBottomInset },
                                      set: { settings.plainBottomInset = 1 - $0 }),
                              range: 0.4...(1 - AppSettings.minPlainBottomInset))
                 sizeSlider($settings.plainArtworkScale)
                 Text("The lowest position still keeps the widget above your name and “Touch ID or Enter Password”.")
                     .font(.caption).foregroundStyle(.secondary)
+            } header: {
+                modeHeader("Without wallpaper (normal lock screen)", inUse: !settings.lockWallpaper)
             }
-            .opacity(settings.lockWallpaper ? 0.6 : 1)
+
+            Section("Animation") {
+                Picker("Smoothness", selection: $settings.animationFPS) {
+                    ForEach(AppSettings.fpsOptions, id: \.self) { Text("\($0) fps").tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Text("Frame rate of the moving background, lyrics and progress bar. 120 fps needs a ProMotion display; higher uses a bit more battery.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
 
             Section {
                 Button("Reset Layout to Defaults") {

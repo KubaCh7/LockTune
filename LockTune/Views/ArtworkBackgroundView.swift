@@ -55,9 +55,10 @@ struct ArtworkBackgroundView: View {
 struct DriftingArtwork: View {
     let image: NSImage
     let size: CGSize
+    @Environment(\.frameInterval) private var frameInterval
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+        TimelineView(.animation(minimumInterval: frameInterval)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             let side = max(size.width, size.height)
             ZStack {
