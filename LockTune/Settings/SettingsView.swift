@@ -149,6 +149,25 @@ private struct StatusTab: View {
     }
 }
 
+/// How the current lyric line lights up; shown in General and Appearance.
+private struct LyricsHighlightPicker: View {
+    @ObservedObject var settings: AppSettings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Picker("Lyrics highlight", selection: $settings.wordByWord) {
+                Text("Word by word").tag(true)
+                Text("Whole line").tag(false)
+            }
+            .pickerStyle(.segmented)
+            Text(settings.wordByWord
+                 ? "Words light up one after another, like Apple Music (whole line on macOS 12–13)."
+                 : "The whole current line lights up at once.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
 /// Liquid Glass picker, shown on both the Status and the General tab.
 private struct GlassPicker: View {
     @ObservedObject var settings: AppSettings
@@ -229,6 +248,10 @@ private struct GeneralSettings: View {
 
             Section("Look") {
                 GlassPicker(settings: settings)
+            }
+
+            Section("Lyrics") {
+                LyricsHighlightPicker(settings: settings)
             }
 
             Section("Updates") {
@@ -483,10 +506,7 @@ private struct AppearanceSettings: View {
                 Picker("Lyrics position", selection: $settings.lyricsPosition) {
                     ForEach(LyricsPosition.allCases) { Text($0.title).tag($0) }
                 }
-                Picker("Highlight", selection: $settings.wordByWord) {
-                    Text("Whole line (like before)").tag(false)
-                    Text("Word by word (like Apple Music)").tag(true)
-                }
+                LyricsHighlightPicker(settings: settings)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Lyrics timing: \(String(format: "%.1f", settings.lyricsLead)) s ahead")
                     Slider(value: $settings.lyricsLead, in: 0...1.5, step: 0.1) {
