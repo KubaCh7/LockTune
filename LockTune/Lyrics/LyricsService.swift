@@ -65,8 +65,11 @@ actor LyricsService {
             URLQueryItem(name: "album_name", value: track.album),
             URLQueryItem(name: "duration", value: String(Int(track.duration.rounded()))),
         ]
-        if let record: LRCLibRecord = try await get(exact.url!), Self.content(from: record) != nil {
-            return record
+        let exactRecord: LRCLibRecord? = try await get(exact.url!)
+        // Only stop here if it's *synced*: LRCLIB often has a plain-only entry
+        // for the exact match while a synced version of the same song exists.
+        if let exactRecord, exactRecord.syncedLyrics?.isEmpty == false {
+            return exactRecord
         }
 
         // 2. Fuzzy search with a cleaned-up title, pick the closest duration.
@@ -75,7 +78,9 @@ actor LyricsService {
             URLQueryItem(name: "track_name", value: Self.cleanTitle(track.title)),
             URLQueryItem(name: "artist_name", value: Self.primaryArtist(track.artist)),
         ]
-        guard let results: [LRCLibRecord] = try await get(search.url!), !results.isEmpty else { return nil }
+        guard let results: [LRCLibRecord] = try await get(search.url!), !results.isEmpty else {
+            return exactRecord.flatMap { Self.content(from: $0) != nil ? $0 : nil }
+        }
 
         func durationDelta(_ r: LRCLibRecord) -> Double {
             guard track.duration > 0, let d = r.duration else { return 0 }
@@ -83,12 +88,18 @@ actor LyricsService {
         }
         let plausible = results.filter { durationDelta($0) <= 5 }
         let pool = plausible.isEmpty ? results : plausible
-        return pool.min { a, b in
+        let best = pool.min { a, b in
             let aSynced = (a.syncedLyrics?.isEmpty == false) ? 0 : 1
             let bSynced = (b.syncedLyrics?.isEmpty == false) ? 0 : 1
             if aSynced != bSynced { return aSynced < bSynced }
             return durationDelta(a) < durationDelta(b)
         }
+        if let best, best.syncedLyrics?.isEmpty == false, durationDelta(best) <= 5 {
+            return best
+        }
+        // No synced version anywhere: prefer the exact (plain) match.
+        if let exactRecord, Self.content(from: exactRecord) != nil { return exactRecord }
+        return best
     }
 
     /// GET + decode; returns nil on 404.
@@ -146,7 +157,8 @@ actor LyricsService {
     // MARK: Cache
 
     private func cacheKey(for track: TrackInfo) -> String {
-        let raw = [track.artist, track.title, track.album, String(Int(track.duration.rounded()))]
+        // "v2": entries cached before synced lyrics were preferred are ignored.
+        let raw = ["v2", track.artist, track.title, track.album, String(Int(track.duration.rounded()))]
             .joined(separator: "\u{1F}")
             .lowercased()
         let digest = SHA256.hash(data: Data(raw.utf8))

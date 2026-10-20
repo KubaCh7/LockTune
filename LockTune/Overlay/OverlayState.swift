@@ -40,6 +40,9 @@ final class OverlayState: ObservableObject {
         isPresented = false
     }
 
+    /// Called when lyrics are shown so the position is fresh.
+    var onLyricsShown: (() -> Void)?
+
     func toggleLyrics() {
         withAnimation(Self.modeAnimation) {
             mode = mode == .player ? .lyrics : .player
@@ -47,6 +50,7 @@ final class OverlayState: ObservableObject {
         }
         lyricsScrollOffset = 0
         isBrowsingLyrics = false
+        if mode == .lyrics { onLyricsShown?() }
     }
 
     func toggleCollapsed() {

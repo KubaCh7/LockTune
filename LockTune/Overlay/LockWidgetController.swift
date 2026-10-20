@@ -87,6 +87,9 @@ final class LockWidgetController {
     /// Set while an animated hide is in flight.
     private var hidingToken: Int?
     private var screenObserver: NSObjectProtocol?
+    /// Keeps App Nap from throttling our timers/rendering while the widget is
+    /// up (that made lyrics stall now and then).
+    private var activity: NSObjectProtocol?
 
     var isVisible: Bool { presentation != nil }
     /// True when the lock-screen panels really sit above the lock screen.
@@ -148,6 +151,11 @@ final class LockWidgetController {
 
         player.setHighFrequency(true)
         lyrics.reloadIfNeeded()
+        if activity == nil {
+            activity = ProcessInfo.processInfo.beginActivity(
+                options: [.userInitiated, .latencyCritical],
+                reason: "Showing Now Playing and synced lyrics")
+        }
 
         // Render one frame in the "before" state, then animate in.
         Task { @MainActor [weak self] in
@@ -195,6 +203,8 @@ final class LockWidgetController {
         if presentation == which {
             presentation = nil
             player.setHighFrequency(false)
+            if let activity { ProcessInfo.processInfo.endActivity(activity) }
+            activity = nil
         }
     }
 

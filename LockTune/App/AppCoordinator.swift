@@ -35,6 +35,7 @@ final class AppCoordinator: ObservableObject {
         widget = LockWidgetController(overlay: overlayState, player: nowPlaying,
                                       lyrics: lyrics, settings: settings)
         widget.lockScreenLayer = SkyLightLockScreenLayer()
+        overlayState.onLyricsShown = { [weak player = self.nowPlaying] in player?.poll() }
     }
 
     func start() {
