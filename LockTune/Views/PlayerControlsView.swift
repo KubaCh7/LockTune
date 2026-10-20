@@ -43,12 +43,7 @@ struct PlayerControlsView: View {
         .padding(.horizontal, 18)
         .padding(.top, showsTitle ? 14 : 12)
         .padding(.bottom, 14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.18), radius: 24, y: 10)
+        .glassBackground(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
     @ViewBuilder private var sourceIcon: some View {
@@ -90,6 +85,8 @@ struct TransportButton: View {
                 .font(.system(size: size, weight: .semibold))
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: size * 1.6, height: size * 1.6)
+                // Mega Liquid Glass: every transport button is its own glass bubble.
+                .glassBackground(Circle(), onlyInMega: true)
         }
         .buttonStyle(PressableButtonStyle())
     }

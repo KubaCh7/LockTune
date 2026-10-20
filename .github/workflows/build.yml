@@ -17,7 +17,8 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-15
+    # macOS 26 image: Xcode 26 / Swift 6.2 SDK, needed for real Liquid Glass (glassEffect).
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 

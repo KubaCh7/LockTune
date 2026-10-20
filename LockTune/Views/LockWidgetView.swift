@@ -34,6 +34,7 @@ struct LockWidgetView: View {
         .foregroundStyle(textColor)
         .environment(\.colorScheme, isLightBackground ? .light : .dark)
         .environment(\.frameInterval, settings.frameInterval)
+        .environment(\.glassLevel, settings.glassLevel)
         .focusEffectDisabled()
     }
 
@@ -188,14 +189,22 @@ struct LockWidgetView: View {
     }
 
     private func lyricsView(alignment: LyricsAlignment) -> some View {
-        LyricsView(lyrics: lyrics, player: player, overlay: overlay,
+        let mega = settings.glassLevel == .mega
+        return LyricsView(lyrics: lyrics, player: player, overlay: overlay,
                    alignment: alignment, wordByWord: settings.wordByWord, lead: settings.lyricsLead,
                    textScale: settings.lyricsScale)
-            .shadow(color: drawsBackground ? .clear : .black.opacity(0.45), radius: 10)
+            .shadow(color: drawsBackground || mega ? .clear : .black.opacity(0.45), radius: 10)
+            // Mega Liquid Glass: lyrics float on a big glass panel.
+            .padding(mega ? 14 : 0)
+            .glassBackground(RoundedRectangle(cornerRadius: 30, style: .continuous), onlyInMega: true)
     }
 
     private func artwork(side: CGFloat) -> some View {
-        ArtworkView(image: player.artwork, token: player.artworkToken, isPlaying: player.isPlaying)
+        let mega = settings.glassLevel == .mega
+        return ArtworkView(image: player.artwork, token: player.artworkToken, isPlaying: player.isPlaying)
+            // Mega Liquid Glass: the artwork sits in a thick glass frame.
+            .padding(mega ? max(8, side * 0.045) : 0)
+            .glassBackground(RoundedRectangle(cornerRadius: side * 0.09, style: .continuous), onlyInMega: true)
             .matchedGeometryEffect(id: "artwork", in: namespace)
             .frame(width: side, height: side)
             .contentShape(Rectangle())
@@ -273,8 +282,8 @@ private struct ToolbarButton: View {
             Image(systemName: systemName)
                 .font(.system(size: 13, weight: .semibold))
                 .frame(width: 34, height: 34)
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay(Circle().strokeBorder(.white.opacity(isOn ? 0.55 : 0.15), lineWidth: isOn ? 1 : 0.5))
+                .glassBackground(Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(isOn ? 0.6 : 0), lineWidth: 1))
                 .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(PressableButtonStyle())

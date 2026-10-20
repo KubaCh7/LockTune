@@ -38,6 +38,7 @@
 		2E0E7B9577C3C3CD67332874 /* ArtworkBackgroundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35284B0A39BDD741498F9B20 /* ArtworkBackgroundView.swift */; };
 		41DC3DBCEA5F30B3B2FD42D6 /* ArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B6494056084E004E8AD187 /* ArtworkView.swift */; };
 		5ED30DB15F5E0811D27EAA81 /* ClockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0992441A0F5EF7462E664405 /* ClockView.swift */; };
+		C9268117A123F1CC1E881DDD /* Glass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ABF6A690A6D75D3344C14BF /* Glass.swift */; };
 		CEFFB9C85A8FD19657A7238F /* LockWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B65B0AB48DC3A7645983CC /* LockWidgetView.swift */; };
 		713B9BEAA07898569E0C5C5C /* LyricsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5586A67896B3626A102EA23A /* LyricsView.swift */; };
 		2F4A04D54389C6BCF7BF6697 /* PlayerControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6730C105E82777C0886F03CD /* PlayerControlsView.swift */; };
@@ -79,6 +80,7 @@
 		35284B0A39BDD741498F9B20 /* ArtworkBackgroundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkBackgroundView.swift; sourceTree = "<group>"; };
 		A3B6494056084E004E8AD187 /* ArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkView.swift; sourceTree = "<group>"; };
 		0992441A0F5EF7462E664405 /* ClockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockView.swift; sourceTree = "<group>"; };
+		8ABF6A690A6D75D3344C14BF /* Glass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Glass.swift; sourceTree = "<group>"; };
 		B2B65B0AB48DC3A7645983CC /* LockWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockWidgetView.swift; sourceTree = "<group>"; };
 		5586A67896B3626A102EA23A /* LyricsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsView.swift; sourceTree = "<group>"; };
 		6730C105E82777C0886F03CD /* PlayerControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerControlsView.swift; sourceTree = "<group>"; };
@@ -188,6 +190,7 @@
 				35284B0A39BDD741498F9B20 /* ArtworkBackgroundView.swift */,
 				A3B6494056084E004E8AD187 /* ArtworkView.swift */,
 				0992441A0F5EF7462E664405 /* ClockView.swift */,
+				8ABF6A690A6D75D3344C14BF /* Glass.swift */,
 				B2B65B0AB48DC3A7645983CC /* LockWidgetView.swift */,
 				5586A67896B3626A102EA23A /* LyricsView.swift */,
 				6730C105E82777C0886F03CD /* PlayerControlsView.swift */,
@@ -327,6 +330,7 @@
 				2E0E7B9577C3C3CD67332874 /* ArtworkBackgroundView.swift in Sources */,
 				41DC3DBCEA5F30B3B2FD42D6 /* ArtworkView.swift in Sources */,
 				5ED30DB15F5E0811D27EAA81 /* ClockView.swift in Sources */,
+				C9268117A123F1CC1E881DDD /* Glass.swift in Sources */,
 				CEFFB9C85A8FD19657A7238F /* LockWidgetView.swift in Sources */,
 				713B9BEAA07898569E0C5C5C /* LyricsView.swift in Sources */,
 				2F4A04D54389C6BCF7BF6697 /* PlayerControlsView.swift in Sources */,

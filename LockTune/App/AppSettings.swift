@@ -116,6 +116,7 @@ final class AppSettings: ObservableObject {
         static let plainArtworkScale = "plainArtworkScale"
         static let animationFPS = "animationFPS"
         static let lyricsScale = "lyricsScale"
+        static let glassLevel = "glassLevel"
         static let layoutVersion = "layoutVersion"
         static let lyricsLead = "lyricsLead"
         static let lyricsEnabled = "lyricsEnabled"
@@ -169,6 +170,9 @@ final class AppSettings: ObservableObject {
     @Published var animationFPS: Int { didSet { defaults.set(animationFPS, forKey: Key.animationFPS) } }
     static let fpsOptions = [30, 60, 120]
     var frameInterval: Double { 1.0 / Double(max(animationFPS, 1)) }
+
+    /// How much Liquid Glass the widget uses.
+    @Published var glassLevel: GlassLevel { didSet { defaults.set(glassLevel.rawValue, forKey: Key.glassLevel) } }
 
     /// Lyrics text size multiplier (0.6 … 1.4).
     @Published var lyricsScale: Double { didSet { defaults.set(lyricsScale, forKey: Key.lyricsScale) } }
@@ -236,6 +240,7 @@ final class AppSettings: ObservableObject {
         artworkScale = min(max(defaults.double(forKey: Key.artworkScale), 0.6), 1.6)
         plainBottomInset = min(max(defaults.double(forKey: Key.plainBottomInset), Self.minPlainBottomInset), 0.6)
         plainArtworkScale = min(max(defaults.double(forKey: Key.plainArtworkScale), 0.6), 1.6)
+        glassLevel = defaults.string(forKey: Key.glassLevel).flatMap(GlassLevel.init(rawValue:)) ?? .normal
         lyricsScale = min(max(defaults.double(forKey: Key.lyricsScale), 0.6), 1.4)
         let fps = defaults.integer(forKey: Key.animationFPS)
         animationFPS = Self.fpsOptions.contains(fps) ? fps : 60

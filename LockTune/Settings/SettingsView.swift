@@ -44,6 +44,10 @@ private struct StatusTab: View {
                 .padding(.vertical, 4)
             }
 
+            Section("Look") {
+                GlassPicker(settings: settings)
+            }
+
             Section("Checklist") {
                 StatusRow(ok: player.hasTrack,
                           title: "Music detected",
@@ -144,6 +148,31 @@ private struct StatusTab: View {
     }
 }
 
+/// Liquid Glass picker, shown on both the Status and the General tab.
+private struct GlassPicker: View {
+    @ObservedObject var settings: AppSettings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Picker("Liquid Glass", selection: $settings.glassLevel) {
+                ForEach(GlassLevel.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            Text(detail).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var detail: String {
+        let real = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0))
+        switch settings.glassLevel {
+        case .off: return "Classic frosted blur."
+        case .normal: return "Glass player card and toolbar." + (real ? "" : " (Imitation — real Liquid Glass needs macOS 26+.)")
+        case .mega: return "Glass everywhere: player card, every button, a glass frame around the artwork and a glass panel behind the lyrics."
+            + (real ? "" : " (Imitation — real Liquid Glass needs macOS 26+.)")
+        }
+    }
+}
+
 private struct StatusRow: View {
     let ok: Bool
     let title: String
@@ -190,6 +219,10 @@ private struct GeneralSettings: View {
                 if let launchError {
                     Text(launchError).font(.caption).foregroundStyle(.red)
                 }
+            }
+
+            Section("Look") {
+                GlassPicker(settings: settings)
             }
 
             Section("Updates") {
