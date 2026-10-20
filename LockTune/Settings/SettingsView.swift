@@ -50,7 +50,10 @@ private struct StatusTab: View {
                           detail: player.track.map { "\($0.title) — \($0.artist) · \(player.sourceName ?? "")" }
                               ?? "Start a song in Spotify or Apple Music.")
                 ForEach(player.providers.map { $0.displayName }, id: \.self) { name in
-                    let status = player.automationStatus[name] ?? .notDetermined
+                    // If we're reading this player's track, permission is clearly granted.
+                    let status: AutomationStatus = player.sourceName == name
+                        ? .allowed
+                        : (player.automationStatus[name] ?? .notDetermined)
                     StatusRow(ok: status == .allowed,
                               title: "Permission to control \(name): \(status.title)",
                               detail: permissionHint(status, name: name, lastError: player.lastErrors[name]))
@@ -106,7 +109,14 @@ private struct StatusTab: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { player.refreshAutomationStatus() }
+        .task {
+            // Keep the checklist live while the window is open.
+            while !Task.isCancelled {
+                player.poll()
+                player.refreshAutomationStatus()
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
     }
 
     private func diagnosticsText() -> String {
@@ -182,6 +192,7 @@ private struct GeneralSettings: View {
 
             Section("Lock screen") {
                 Toggle("Show the music widget when the Mac is locked", isOn: $settings.lockWidgetEnabled)
+                Toggle("Keep the display on while locked and music plays", isOn: $settings.keepDisplayAwake)
                 Toggle("Lock after being idle while music plays", isOn: $settings.idleEnabled)
                 Stepper(value: $settings.idleMinutes, in: 1...120) {
                     Text("Idle time: \(settings.idleMinutes) min")
@@ -226,6 +237,20 @@ private struct AppearanceSettings: View {
     var body: some View {
         Form {
             Section("Widget") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Height on the lock screen")
+                    Slider(value: Binding(get: { 1 - settings.widgetBottomInset },
+                                          set: { settings.widgetBottomInset = 1 - $0 }),
+                           in: 0.4...0.95) {
+                        EmptyView()
+                    } minimumValueLabel: {
+                        Text("Higher").font(.caption)
+                    } maximumValueLabel: {
+                        Text("Lower").font(.caption)
+                    }
+                    Text("Default sits just above your name and password field. Use Preview Widget to check.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Toggle("Artwork wallpaper behind the widget", isOn: $settings.lockWallpaper)
                 Picker("Wallpaper style", selection: $settings.backgroundStyle) {
                     ForEach(BackgroundStyle.allCases) { Text($0.title).tag($0) }
@@ -252,6 +277,12 @@ private struct AppearanceSettings: View {
 
             Section("Lyrics") {
                 Toggle("Load lyrics from LRCLIB", isOn: $settings.lyricsEnabled)
+                Picker("Lyrics position", selection: $settings.lyricsPosition) {
+                    ForEach(LyricsPosition.allCases) { Text($0.title).tag($0) }
+                }
+                Toggle("Highlight word by word (like Apple Music)", isOn: $settings.wordByWord)
+                Text("Uses per-word timing when the lyrics have it; otherwise the timing within a line is estimated.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Button("Clear Lyrics Cache") { coordinator.lyrics.clearCache() }
             }
         }

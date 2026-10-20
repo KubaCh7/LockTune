@@ -48,13 +48,21 @@ enum BackgroundStyle: String, CaseIterable, Identifiable {
     var title: String { self == .blurred ? "Blurred & animated" : "Artwork wallpaper" }
 }
 
-enum LyricsLayout: String, CaseIterable, Identifiable {
+enum LyricsPosition: String, CaseIterable, Identifiable {
     /// Artwork + controls on the left, lyrics on the right (reference video).
-    case sideBySide
-    /// Small artwork next to title/artist at the top left, lyrics fill the screen.
-    case header
+    case right
+    /// Lyrics on the left, artwork + controls on the right.
+    case left
+    /// Large centred lyrics, small artwork + controls underneath.
+    case center
     var id: String { rawValue }
-    var title: String { self == .sideBySide ? "Side by side" : "Compact header" }
+    var title: String {
+        switch self {
+        case .right: return "Right of the artwork"
+        case .left: return "Left of the artwork"
+        case .center: return "Centered (big)"
+        }
+    }
 }
 
 enum PreferredSource: String, CaseIterable, Identifiable {
@@ -85,7 +93,10 @@ final class AppSettings: ObservableObject {
         static let clockFont = "clockFont"
         static let clockWeight = "clockWeight"
         static let backgroundStyle = "backgroundStyle"
-        static let lyricsLayout = "lyricsLayout"
+        static let lyricsPosition = "lyricsPosition"
+        static let widgetBottomInset = "widgetBottomInset"
+        static let keepDisplayAwake = "keepDisplayAwake"
+        static let wordByWord = "wordByWord"
         static let lyricsEnabled = "lyricsEnabled"
         static let preferredSource = "preferredSource"
         static let allDisplays = "allDisplays"
@@ -106,7 +117,14 @@ final class AppSettings: ObservableObject {
     @Published var clockFont: ClockFontStyle { didSet { defaults.set(clockFont.rawValue, forKey: Key.clockFont) } }
     @Published var clockWeight: ClockWeight { didSet { defaults.set(clockWeight.rawValue, forKey: Key.clockWeight) } }
     @Published var backgroundStyle: BackgroundStyle { didSet { defaults.set(backgroundStyle.rawValue, forKey: Key.backgroundStyle) } }
-    @Published var lyricsLayout: LyricsLayout { didSet { defaults.set(lyricsLayout.rawValue, forKey: Key.lyricsLayout) } }
+    @Published var lyricsPosition: LyricsPosition { didSet { defaults.set(lyricsPosition.rawValue, forKey: Key.lyricsPosition) } }
+    /// Gap between the bottom of the widget and the bottom of the screen, as a
+    /// fraction of the screen height (default sits just above the user name).
+    @Published var widgetBottomInset: Double { didSet { defaults.set(widgetBottomInset, forKey: Key.widgetBottomInset) } }
+    /// Keep the display on while the widget is on the lock screen and music plays.
+    @Published var keepDisplayAwake: Bool { didSet { defaults.set(keepDisplayAwake, forKey: Key.keepDisplayAwake) } }
+    /// Apple Music-style word-by-word highlight of the current lyric line.
+    @Published var wordByWord: Bool { didSet { defaults.set(wordByWord, forKey: Key.wordByWord) } }
     @Published var lyricsEnabled: Bool { didSet { defaults.set(lyricsEnabled, forKey: Key.lyricsEnabled) } }
     @Published var preferredSource: PreferredSource { didSet { defaults.set(preferredSource.rawValue, forKey: Key.preferredSource) } }
     @Published var allDisplays: Bool { didSet { defaults.set(allDisplays, forKey: Key.allDisplays) } }
@@ -120,6 +138,9 @@ final class AppSettings: ObservableObject {
             Key.lockWidgetEnabled: true,
             Key.lockWallpaper: false,
             Key.lyricsEnabled: true,
+            Key.widgetBottomInset: 0.25,
+            Key.keepDisplayAwake: true,
+            Key.wordByWord: true,
             Key.allDisplays: true,
         ])
 
@@ -133,7 +154,10 @@ final class AppSettings: ObservableObject {
         clockFont = defaults.string(forKey: Key.clockFont).flatMap(ClockFontStyle.init(rawValue:)) ?? .newYork
         clockWeight = defaults.string(forKey: Key.clockWeight).flatMap(ClockWeight.init(rawValue:)) ?? .regular
         backgroundStyle = defaults.string(forKey: Key.backgroundStyle).flatMap(BackgroundStyle.init(rawValue:)) ?? .blurred
-        lyricsLayout = defaults.string(forKey: Key.lyricsLayout).flatMap(LyricsLayout.init(rawValue:)) ?? .sideBySide
+        lyricsPosition = defaults.string(forKey: Key.lyricsPosition).flatMap(LyricsPosition.init(rawValue:)) ?? .right
+        widgetBottomInset = min(max(defaults.double(forKey: Key.widgetBottomInset), 0.05), 0.6)
+        keepDisplayAwake = defaults.bool(forKey: Key.keepDisplayAwake)
+        wordByWord = defaults.bool(forKey: Key.wordByWord)
         lyricsEnabled = defaults.bool(forKey: Key.lyricsEnabled)
         preferredSource = defaults.string(forKey: Key.preferredSource).flatMap(PreferredSource.init(rawValue:)) ?? .automatic
         allDisplays = defaults.bool(forKey: Key.allDisplays)

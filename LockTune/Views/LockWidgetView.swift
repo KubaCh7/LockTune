@@ -1,53 +1,70 @@
 import AppKit
 import SwiftUI
 
-/// The now-playing widget: artwork + glass controls in the middle of the
-/// screen, lyrics on the right when enabled, and a small toolbar on the left
-/// (like the reference app). The background is transparent so the real lock
-/// screen (clock, password field) stays visible, unless "artwork wallpaper" is on.
+/// The now-playing widget: artwork + glass controls sitting just above the
+/// user name on the lock screen, lyrics on the right/left/centre when enabled,
+/// and a small toolbar on the left (like the reference app). The background is
+/// transparent so the real lock screen stays visible, unless "artwork
+/// wallpaper" is on.
 struct LockWidgetView: View {
     @ObservedObject var overlay: OverlayState
     @ObservedObject var player: NowPlayingController
     @ObservedObject var lyrics: LyricsController
     @ObservedObject var settings: AppSettings
-    let presentation: LockWidgetController.Presentation
     var onClose: () -> Void
 
     @Namespace private var namespace
 
+    private var presentation: LockWidgetController.Presentation { overlay.presentation }
     private var showsLyrics: Bool { overlay.mode == .lyrics && player.hasTrack }
     /// Full-screen artwork + our own clock (covers the system lock screen UI).
     private var drawsBackground: Bool { settings.lockWallpaper || presentation == .preview }
     private var palette: ArtworkPalette { player.hasTrack ? player.palette : .fallback }
     private var textColor: Color { drawsBackground ? palette.textColor : .white }
     private var isLightBackground: Bool { drawsBackground && palette.isLight }
+    private var shown: Bool { overlay.isPresented }
 
     var body: some View {
         GeometryReader { geo in
-            let size = geo.size
-            ZStack(alignment: .topLeading) {
-                if drawsBackground {
-                    background(size: size)
-                        .transition(.opacity)
-                }
-
-                content(size: size)
-                    .opacity(overlay.isCollapsed ? 0 : 1)
-                    .scaleEffect(overlay.isCollapsed ? 0.92 : 1)
-                    .allowsHitTesting(!overlay.isCollapsed)
-
-                toolbar
-                    .padding(.leading, 26)
-                    .padding(.top, 34)
+            if overlay.isActive {
+                widget(size: geo.size)
             }
-            .frame(width: size.width, height: size.height)
-            .opacity(overlay.isPresented ? 1 : 0)
-            .scaleEffect(overlay.isPresented ? 1 : 0.97)
         }
         .ignoresSafeArea()
         .foregroundStyle(textColor)
         .environment(\.colorScheme, isLightBackground ? .light : .dark)
         .focusEffectDisabled()
+    }
+
+    private func widget(size: CGSize) -> some View {
+        ZStack(alignment: .topLeading) {
+            if drawsBackground {
+                background(size: size)
+                    // Entrance: the artwork wallpaper zooms in out of a blur.
+                    .opacity(shown ? 1 : 0)
+                    .scaleEffect(shown ? 1 : 1.12)
+                    .blur(radius: shown ? 0 : 40)
+                    .animation(.easeOut(duration: shown ? 0.55 : 0.3), value: shown)
+            }
+
+            content(size: size)
+                .opacity(overlay.isCollapsed ? 0 : 1)
+                .scaleEffect(overlay.isCollapsed ? 0.92 : 1)
+                .allowsHitTesting(!overlay.isCollapsed)
+                // Entrance: the widget rises into place with a spring.
+                .opacity(shown ? 1 : 0)
+                .offset(y: shown ? 0 : 70)
+                .scaleEffect(shown ? 1 : 0.94, anchor: .bottom)
+                .animation(shown ? .spring(response: 0.62, dampingFraction: 0.8).delay(0.08)
+                                 : .easeIn(duration: 0.22), value: shown)
+
+            toolbar
+                .padding(.leading, 26)
+                .padding(.top, 34)
+                .opacity(shown ? 1 : 0)
+                .animation(.easeOut(duration: 0.4).delay(shown ? 0.2 : 0), value: shown)
+        }
+        .frame(width: size.width, height: size.height)
         .animation(.easeInOut(duration: 0.5), value: drawsBackground)
         .animation(.easeInOut(duration: 0.8), value: palette)
     }
@@ -80,58 +97,93 @@ struct LockWidgetView: View {
         .frame(width: size.width, height: size.height)
     }
 
-    // MARK: Widget
+    // MARK: Widget layout
 
-    /// Vertical band between the lock-screen clock (top) and the password field (bottom).
-    private func bandFrame(_ size: CGSize) -> (top: CGFloat, height: CGFloat) {
-        let top = size.height * 0.27
-        let bottom = size.height * 0.80
-        return (top, bottom - top)
+    /// The widget's area: below the lock-screen clock, ending just above the
+    /// user name / password field (adjustable in Settings).
+    private struct Area {
+        var top: CGFloat
+        var height: CGFloat
+    }
+
+    private func widgetArea(_ size: CGSize) -> Area {
+        let top = size.height * 0.24
+        let bottom = size.height * (1 - settings.widgetBottomInset)
+        return Area(top: top, height: max(bottom - top, size.height * 0.22))
     }
 
     @ViewBuilder
     private func content(size: CGSize) -> some View {
-        let band = bandFrame(size)
+        let area = widgetArea(size)
         Group {
             if player.hasTrack {
                 if showsLyrics {
-                    lyricsLayout(size: size, bandHeight: band.height)
+                    lyricsLayout(size: size, height: area.height)
                 } else {
-                    playerLayout(size: size, bandHeight: band.height)
+                    playerLayout(size: size, height: area.height)
                 }
             }
         }
-        .frame(width: size.width, height: band.height)
-        .offset(y: band.top)
+        .frame(width: size.width, height: area.height, alignment: .bottom)
+        .offset(y: area.top)
         .shadow(color: drawsBackground ? .clear : .black.opacity(0.35), radius: 18, y: 6)
     }
 
-    private func playerLayout(size: CGSize, bandHeight: CGFloat) -> some View {
-        let art = min(bandHeight * 0.6, size.width * 0.28)
-        return VStack(spacing: art * 0.07) {
+    private func playerLayout(size: CGSize, height: CGFloat) -> some View {
+        let controlsHeight: CGFloat = 150
+        let art = max(110, min(height - controlsHeight - 24, size.width * 0.24))
+        return VStack(spacing: 20) {
             artwork(side: art)
             controls(width: max(art * 0.95, 300))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 
-    /// Artwork + controls on the left, lyrics on the right (reference video).
-    private func lyricsLayout(size: CGSize, bandHeight: CGFloat) -> some View {
-        let art = min(bandHeight * 0.48, size.width * 0.22)
-        return HStack(alignment: .center, spacing: size.width * 0.05) {
-            VStack(spacing: 18) {
+    @ViewBuilder
+    private func lyricsLayout(size: CGSize, height: CGFloat) -> some View {
+        switch settings.lyricsPosition {
+        case .right, .left:
+            let art = max(110, min(height * 0.45, size.width * 0.2))
+            let column = VStack(spacing: 18) {
                 artwork(side: art)
                 controls(width: max(art, 300))
             }
             .frame(width: max(art, 300))
 
-            LyricsView(lyrics: lyrics, player: player, overlay: overlay)
-                .frame(width: size.width * 0.4)
-                .frame(maxHeight: .infinity)
-                .shadow(color: drawsBackground ? .clear : .black.opacity(0.45), radius: 10)
-                .transition(.opacity.combined(with: .offset(x: 40)))
+            let lyricsColumn = lyricsView(alignment: .leading)
+                .frame(width: size.width * 0.4, height: height)
+                .transition(.opacity.combined(with: .offset(x: settings.lyricsPosition == .right ? 40 : -40)))
+
+            HStack(alignment: .center, spacing: size.width * 0.05) {
+                if settings.lyricsPosition == .right {
+                    column
+                    lyricsColumn
+                } else {
+                    lyricsColumn
+                    column
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+        case .center:
+            VStack(spacing: 16) {
+                lyricsView(alignment: .center)
+                    .frame(width: min(size.width * 0.62, 900))
+                    .frame(maxHeight: .infinity)
+                    .transition(.opacity)
+                HStack(spacing: 16) {
+                    artwork(side: 76)
+                    controls(width: 340)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func lyricsView(alignment: LyricsAlignment) -> some View {
+        LyricsView(lyrics: lyrics, player: player, overlay: overlay,
+                   alignment: alignment, wordByWord: settings.wordByWord)
+            .shadow(color: drawsBackground ? .clear : .black.opacity(0.45), radius: 10)
     }
 
     private func artwork(side: CGFloat) -> some View {
@@ -162,6 +214,14 @@ struct LockWidgetView: View {
             }
             .disabled(!player.hasTrack)
 
+            if showsLyrics {
+                ToolbarButton(systemName: lyricsPositionIcon, isOn: false,
+                              help: "Lyrics position: \(settings.lyricsPosition.title)") {
+                    cycleLyricsPosition()
+                }
+                .transition(.scale.combined(with: .opacity))
+            }
+
             ToolbarButton(systemName: settings.lockWallpaper ? "photo.fill" : "photo",
                           isOn: settings.lockWallpaper, help: "Artwork wallpaper") {
                 settings.lockWallpaper.toggle()
@@ -176,6 +236,21 @@ struct LockWidgetView: View {
                 ToolbarButton(systemName: "xmark", isOn: false, help: "Close preview (Esc)", action: onClose)
             }
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showsLyrics)
+    }
+
+    private var lyricsPositionIcon: String {
+        switch settings.lyricsPosition {
+        case .right: return "rectangle.righthalf.inset.filled"
+        case .left: return "rectangle.lefthalf.inset.filled"
+        case .center: return "rectangle.center.inset.filled"
+        }
+    }
+
+    private func cycleLyricsPosition() {
+        let all = LyricsPosition.allCases
+        let next = all[(all.firstIndex(of: settings.lyricsPosition)! + 1) % all.count]
+        withAnimation(OverlayState.modeAnimation) { settings.lyricsPosition = next }
     }
 }
 

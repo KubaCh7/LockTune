@@ -41,6 +41,22 @@ enum SelfTest {
         report(LRCParser.activeIndex(in: lines, at: 8) == lines.firstIndex { $0.text == "Twice" },
                "Active lyric line lookup")
 
+        // Word-by-word: enhanced LRC tags and estimated timing.
+        let enhanced = LRCParser.parse("[00:10.00]<00:10.00>Hello <00:11.00>big <00:12.00>world\n[00:14.00]Next")
+        let tagged = enhanced.first { $0.text == "Hello big world" }
+        report(tagged?.hasWordTiming == true && tagged?.words.count == 3, "Enhanced LRC word tags",
+               tagged.map { $0.words.map { "\($0.time ?? -1):\($0.text)" }.joined(separator: "|") } ?? "line missing")
+        if let tagged {
+            let p = tagged.wordProgress(at: 11.5)
+            report(p.count == 3 && p[0] == 1 && p[1] > 0.4 && p[1] < 0.6 && p[2] == 0,
+                   "Word progress from tags", p.map { String(format: "%.2f", $0) }.joined(separator: " "))
+        }
+        let plainLine = LyricLine(id: 0, time: 0, end: 10, text: "one two three four")
+        let estimated = plainLine.wordProgress(at: 0.6)
+        report(estimated.count == 4 && estimated[0] == 1 && estimated[3] == 0
+               && plainLine.wordProgress(at: 9).allSatisfy { $0 == 1 },
+               "Estimated word progress", estimated.map { String(format: "%.2f", $0) }.joined(separator: " "))
+
         // 3. Private functions needed for the lock screen / locking.
         let missing = SkyLightLockScreenLayer.missingSymbols
         report(missing.isEmpty, "Window-server functions for the lock-screen layer",

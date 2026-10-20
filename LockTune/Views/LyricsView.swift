@@ -1,23 +1,34 @@
 import AppKit
 import SwiftUI
 
+enum LyricsAlignment {
+    case leading, center
+
+    var frame: Alignment { self == .center ? .center : .leading }
+    var text: TextAlignment { self == .center ? .center : .leading }
+    var anchor: UnitPoint { self == .center ? .center : .leading }
+}
+
 /// Apple Music-style lyrics: time-synced when possible, plain otherwise.
 struct LyricsView: View {
     @ObservedObject var lyrics: LyricsController
     @ObservedObject var player: NowPlayingController
     @ObservedObject var overlay: OverlayState
+    var alignment: LyricsAlignment = .leading
+    var wordByWord = true
 
     var body: some View {
         switch lyrics.state {
         case .loaded(.synced(let lines)):
-            SyncedLyricsView(lines: lines, revision: lyrics.revision, player: player, overlay: overlay)
+            SyncedLyricsView(lines: lines, revision: lyrics.revision, player: player, overlay: overlay,
+                             alignment: alignment, wordByWord: wordByWord)
         case .loaded(.plain(let lines)):
-            PlainLyricsView(lines: lines)
+            PlainLyricsView(lines: lines, alignment: alignment)
         case .loaded(.instrumental):
             message("Instrumental", systemImage: "music.note")
         case .loading:
             InstrumentalDots(isActive: true, dotSize: 14)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment.frame)
         case .notFound:
             message("No lyrics found for this song", systemImage: "text.badge.xmark")
         case .failed:
@@ -31,7 +42,7 @@ struct LyricsView: View {
         Label(text, systemImage: systemImage)
             .font(.system(size: 22, weight: .semibold))
             .opacity(0.6)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment.frame)
     }
 }
 
@@ -42,6 +53,8 @@ private struct SyncedLyricsView: View {
     let revision: Int
     @ObservedObject var player: NowPlayingController
     @ObservedObject var overlay: OverlayState
+    let alignment: LyricsAlignment
+    let wordByWord: Bool
 
     /// Lines are highlighted slightly early, as Apple Music does.
     private let lead: TimeInterval = 0.25
@@ -49,14 +62,17 @@ private struct SyncedLyricsView: View {
     var body: some View {
         // `player` is observed, so a seek while paused (which bumps
         // `timelineRevision`) re-renders this even though the timeline is paused.
-        TimelineView(.animation(minimumInterval: 1.0 / 20, paused: !player.isPlaying)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !player.isPlaying)) { context in
             let time = player.position(at: context.date) + lead
             LyricsStack(lines: lines,
                         activeIndex: LRCParser.activeIndex(in: lines, at: time),
+                        time: time,
                         revision: revision,
                         scrollOffset: overlay.lyricsScrollOffset,
                         isBrowsing: overlay.isBrowsingLyrics,
                         isPlaying: player.isPlaying,
+                        alignment: alignment,
+                        wordByWord: wordByWord,
                         onSeek: { player.seek(to: $0) })
         }
     }
@@ -74,10 +90,13 @@ private struct LineHeightKey: PreferenceKey {
 private struct LyricsStack: View {
     let lines: [LyricLine]
     let activeIndex: Int
+    let time: TimeInterval
     let revision: Int
     let scrollOffset: CGFloat
     let isBrowsing: Bool
     let isPlaying: Bool
+    let alignment: LyricsAlignment
+    let wordByWord: Bool
     let onSeek: (TimeInterval) -> Void
 
     @State private var heights: [Int: CGFloat] = [:]
@@ -88,7 +107,7 @@ private struct LyricsStack: View {
         GeometryReader { geo in
             let fontSize = min(max(geo.size.width * 0.058, 24), 46)
             let spacing = fontSize * 0.45
-            let anchor = geo.size.height * 0.28
+            let anchor = geo.size.height * (alignment == .center ? 0.38 : 0.28)
             let tops = lineTops(spacing: spacing, estimatedHeight: fontSize * 1.5)
             let focus = min(max(activeIndex, 0), max(lines.count - 1, 0))
             let focusTop = tops.isEmpty ? 0 : tops[focus]
@@ -107,12 +126,14 @@ private struct LyricsStack: View {
                                   isActive: isActive,
                                   isPlaying: isPlaying,
                                   fontSize: fontSize,
-                                  isHovered: hovered == index)
-                        .frame(width: geo.size.width, alignment: .leading)
+                                  isHovered: hovered == index,
+                                  alignment: alignment,
+                                  progress: isActive && wordByWord ? line.wordProgress(at: time) : nil)
+                        .frame(width: geo.size.width, alignment: alignment.frame)
                         .background(GeometryReader { proxy in
                             Color.clear.preference(key: LineHeightKey.self, value: [index: proxy.size.height])
                         })
-                        .scaleEffect(isActive ? 1 : 0.94, anchor: .leading)
+                        .scaleEffect(isActive ? 1 : 0.94, anchor: alignment.anchor)
                         .opacity(revealed ? opacity(distance: distance, isActive: isActive) : 0)
                         .blur(radius: blur(distance: distance))
                         .offset(y: revealed ? y : y + 36)
@@ -184,28 +205,44 @@ private struct LyricLineView: View {
     let isPlaying: Bool
     let fontSize: CGFloat
     let isHovered: Bool
+    let alignment: LyricsAlignment
+    /// Per-word progress (0…1) for the word-by-word highlight; nil = whole line lit.
+    let progress: [Double]?
 
     var body: some View {
         Group {
             if line.isInstrumental {
                 InstrumentalDots(isActive: isActive && isPlaying, dotSize: fontSize * 0.32)
-                    .frame(height: fontSize * 1.1, alignment: .leading)
+                    .frame(height: fontSize * 1.1, alignment: alignment.frame)
             } else {
-                Text(line.text)
+                lineText
                     .font(.system(size: fontSize, weight: .bold))
                     .lineSpacing(fontSize * 0.08)
-                    .multilineTextAlignment(.leading)
+                    .multilineTextAlignment(alignment.text)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: alignment.frame)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(.primary.opacity(isHovered ? 0.08 : 0))
         )
         .contentShape(Rectangle())
+    }
+
+    /// Words already sung are fully lit, the current one fills in, the rest
+    /// stay dim — like Apple Music's word-by-word lyrics.
+    private var lineText: Text {
+        guard let progress, progress.count == line.words.count else {
+            return Text(line.text)
+        }
+        var text = Text("")
+        for (word, value) in zip(line.words, progress) {
+            text = text + Text(word.text).foregroundStyle(.primary.opacity(0.38 + 0.62 * value))
+        }
+        return text
     }
 }
 
@@ -233,10 +270,11 @@ struct InstrumentalDots: View {
 
 private struct PlainLyricsView: View {
     let lines: [String]
+    let alignment: LyricsAlignment
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: alignment == .center ? .center : .leading, spacing: 12) {
                 Text("Lyrics aren't synced for this song")
                     .font(.system(size: 12, weight: .semibold))
                     .textCase(.uppercase)
@@ -246,12 +284,13 @@ private struct PlainLyricsView: View {
                     Text(line.isEmpty ? " " : line)
                         .font(.system(size: 26, weight: .bold))
                         .opacity(0.85)
+                        .multilineTextAlignment(alignment.text)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(.vertical, 60)
             .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: alignment.frame)
         }
         .mask(
             LinearGradient(stops: [

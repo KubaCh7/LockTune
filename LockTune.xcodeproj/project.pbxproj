@@ -21,6 +21,7 @@
 		E3F4C6644702BF7B51CA0446 /* AutomationPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E31026A593ECB1317F9D986 /* AutomationPermission.swift */; };
 		7F34FF2EED4EA22B445728B4 /* NowPlayingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C668170F1DCEE3C253DEF8A5 /* NowPlayingController.swift */; };
 		0F48C3B6BD6CD7AB55B16D58 /* NowPlayingProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07166968E2927B9EB848CD61 /* NowPlayingProvider.swift */; };
+		99D0567F31F4A75272FB2B00 /* DisplayAwake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 845B8AB4028E3F35E065EC09 /* DisplayAwake.swift */; };
 		6756C348FDE005665DED7656 /* LockWidgetController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9FACD185996A21F484F43E0 /* LockWidgetController.swift */; };
 		D518E475A13F093B5340D366 /* OverlayState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F247E63AEA72702D4CFAB090 /* OverlayState.swift */; };
 		38103306B8EE7254948254EA /* ScreenLocker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A6C34C60788BC4FAAA77046 /* ScreenLocker.swift */; };
@@ -58,6 +59,7 @@
 		4E31026A593ECB1317F9D986 /* AutomationPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationPermission.swift; sourceTree = "<group>"; };
 		C668170F1DCEE3C253DEF8A5 /* NowPlayingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingController.swift; sourceTree = "<group>"; };
 		07166968E2927B9EB848CD61 /* NowPlayingProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingProvider.swift; sourceTree = "<group>"; };
+		845B8AB4028E3F35E065EC09 /* DisplayAwake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayAwake.swift; sourceTree = "<group>"; };
 		F9FACD185996A21F484F43E0 /* LockWidgetController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockWidgetController.swift; sourceTree = "<group>"; };
 		F247E63AEA72702D4CFAB090 /* OverlayState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayState.swift; sourceTree = "<group>"; };
 		1A6C34C60788BC4FAAA77046 /* ScreenLocker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenLocker.swift; sourceTree = "<group>"; };
@@ -130,6 +132,7 @@
 		641F9698BA620E2CABA1C607 /* Overlay */ = {
 			isa = PBXGroup;
 			children = (
+				845B8AB4028E3F35E065EC09 /* DisplayAwake.swift */,
 				F9FACD185996A21F484F43E0 /* LockWidgetController.swift */,
 				F247E63AEA72702D4CFAB090 /* OverlayState.swift */,
 				1A6C34C60788BC4FAAA77046 /* ScreenLocker.swift */,
@@ -305,6 +308,7 @@
 				E3F4C6644702BF7B51CA0446 /* AutomationPermission.swift in Sources */,
 				7F34FF2EED4EA22B445728B4 /* NowPlayingController.swift in Sources */,
 				0F48C3B6BD6CD7AB55B16D58 /* NowPlayingProvider.swift in Sources */,
+				99D0567F31F4A75272FB2B00 /* DisplayAwake.swift in Sources */,
 				6756C348FDE005665DED7656 /* LockWidgetController.swift in Sources */,
 				D518E475A13F093B5340D366 /* OverlayState.swift in Sources */,
 				38103306B8EE7254948254EA /* ScreenLocker.swift in Sources */,

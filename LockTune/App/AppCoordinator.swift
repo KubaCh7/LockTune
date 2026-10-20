@@ -15,6 +15,8 @@ final class AppCoordinator: ObservableObject {
     private let hotkeys = HotkeyManager()
     private let idleMonitor = IdleMonitor()
     private let lockMonitor = LockMonitor()
+    private let displayAwake = DisplayAwake()
+    private var lockAttemptTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
     private var started = false
     /// The widget was put up while locked but couldn't go above the lock screen.
@@ -39,6 +41,7 @@ final class AppCoordinator: ObservableObject {
         started = true
 
         nowPlaying.start()
+        widget.prepare()
 
         // Global shortcut: lock the Mac (the widget then appears by itself).
         hotkeys.onTrigger = { [weak self] in self?.lockNow() }
@@ -80,6 +83,16 @@ final class AppCoordinator: ObservableObject {
                 Task { @MainActor in self?.updateWidget() }
             }
             .store(in: &cancellables)
+        // Keep the display on while the widget is on the lock screen and music plays.
+        nowPlaying.$state
+            .removeDuplicates()
+            .sink { [weak self] _ in Task { @MainActor in self?.updateDisplayAwake() } }
+            .store(in: &cancellables)
+        settings.$keepDisplayAwake
+            .dropFirst()
+            .sink { [weak self] _ in Task { @MainActor in self?.updateDisplayAwake() } }
+            .store(in: &cancellables)
+
         settings.$preferredSource
             .dropFirst()
             .sink { [weak self] _ in self?.nowPlaying.refreshSoon() }
@@ -88,9 +101,26 @@ final class AppCoordinator: ObservableObject {
 
     // MARK: Actions
 
+    /// Locks the Mac. When the widget can sit above the lock screen it's shown
+    /// *first*, so the lock animates straight into the player instead of
+    /// flashing the bare lock screen.
     func lockNow() {
         nowPlaying.poll()
-        ScreenLocker.lock()
+        guard settings.lockWidgetEnabled, nowPlaying.hasTrack, widget.canShowAboveLockScreen else {
+            ScreenLocker.lock()
+            return
+        }
+        widget.show(.lockScreen)
+        lockAttemptTask?.cancel()
+        lockAttemptTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            ScreenLocker.lock()
+            // If the Mac didn't actually lock, don't leave the widget on the desktop.
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard let self, !Task.isCancelled, !self.isScreenLocked,
+                  self.widget.presentation == .lockScreen else { return }
+            self.widget.hide()
+        }
     }
 
     func togglePreview() {
@@ -118,6 +148,7 @@ final class AppCoordinator: ObservableObject {
             nowPlaying.poll()
             updateWidget()
         } else {
+            lockAttemptTask?.cancel()
             if showsAfterUnlock, widget.isVisible {
                 // Fallback mode: keep the widget up as the first thing you see.
                 widget.makeInteractive()
@@ -126,6 +157,14 @@ final class AppCoordinator: ObservableObject {
             }
             showsAfterUnlock = false
         }
+        updateDisplayAwake()
+    }
+
+    private func updateDisplayAwake() {
+        displayAwake.set(settings.keepDisplayAwake
+                         && isScreenLocked
+                         && widget.presentation == .lockScreen
+                         && nowPlaying.isPlaying)
     }
 
     private func updateWidget() {
@@ -136,6 +175,7 @@ final class AppCoordinator: ObservableObject {
         } else if widget.presentation == .lockScreen {
             widget.hide()
         }
+        updateDisplayAwake()
     }
 
     // MARK: Hotkey

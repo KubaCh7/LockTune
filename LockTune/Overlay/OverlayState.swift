@@ -8,7 +8,12 @@ final class OverlayState: ObservableObject {
 
     /// Kept between appearances, so lyrics stay on if you turned them on.
     @Published var mode: Mode = .player
+    /// Drives the entrance/exit animation (the views animate on this value).
     @Published private(set) var isPresented = false
+    /// While false the panels render nothing at all (they stay alive, invisible,
+    /// so they can appear instantly when the Mac locks).
+    @Published var isActive = false
+    @Published var presentation: LockWidgetController.Presentation = .lockScreen
     /// "Hide widget" toolbar toggle: only the toolbar stays visible.
     @Published var isCollapsed = false
     /// Manual scroll offset of the synced lyrics (0 = follow playback).
@@ -28,11 +33,11 @@ final class OverlayState: ObservableObject {
     }
 
     func present() {
-        withAnimation(.spring(response: 0.7, dampingFraction: 0.9)) { isPresented = true }
+        isPresented = true
     }
 
     func dismiss() {
-        withAnimation(.easeIn(duration: 0.25)) { isPresented = false }
+        isPresented = false
     }
 
     func toggleLyrics() {

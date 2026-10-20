@@ -60,10 +60,14 @@ final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
 }
 
 /// Shows the now-playing widget on every display.
+///
+/// The lock-screen panels are created once and kept alive (invisible and
+/// click-through) inside the lock-screen layer, so when the Mac locks the
+/// widget appears instantly instead of after a visible delay.
 @MainActor
 final class LockWidgetController {
     enum Presentation: Equatable {
-        /// Shown because the Mac was locked.
+        /// Shown because the Mac is (being) locked.
         case lockScreen
         /// Shown from the menu / status window to check how it looks.
         case preview
@@ -75,14 +79,19 @@ final class LockWidgetController {
     private let settings: AppSettings
     var lockScreenLayer: LockScreenLayer?
 
-    private var panels: [LockWidgetPanel] = []
+    private var lockPanels: [LockWidgetPanel] = []
+    private var previewPanels: [LockWidgetPanel] = []
+    private var lockPanelsLifted = false
     private(set) var presentation: Presentation?
-    /// True when the current panels really sit above the lock screen.
-    private(set) var isAboveLockScreen = false
     private var generation = 0
+    /// Set while an animated hide is in flight.
+    private var hidingToken: Int?
     private var screenObserver: NSObjectProtocol?
 
-    var isVisible: Bool { !panels.isEmpty }
+    var isVisible: Bool { presentation != nil }
+    /// True when the lock-screen panels really sit above the lock screen.
+    var isAboveLockScreen: Bool { presentation == .lockScreen && lockPanelsLifted }
+    var canShowAboveLockScreen: Bool { lockScreenLayer?.isAvailable == true }
 
     init(overlay: OverlayState, player: NowPlayingController, lyrics: LyricsController, settings: AppSettings) {
         self.overlay = overlay
@@ -91,31 +100,56 @@ final class LockWidgetController {
         self.settings = settings
     }
 
+    /// Builds the (hidden) lock-screen panels ahead of time.
+    func prepare() {
+        buildLockPanels()
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.screensChanged() }
+        }
+    }
+
     // MARK: Show / hide
 
     func show(_ presentation: Presentation) {
-        if self.presentation == presentation, isVisible, overlay.isPresented { return }
+        if self.presentation == presentation {
+            // Already up; if it was fading out, bring it back.
+            if hidingToken != nil {
+                generation &+= 1
+                hidingToken = nil
+                overlay.present()
+            }
+            return
+        }
+        if let current = self.presentation { finishHiding(current) }
         generation &+= 1
-        tearDown()
+        hidingToken = nil
         self.presentation = presentation
-        overlay.prepare()
-        buildPanels()
 
-        if presentation == .preview {
+        overlay.prepare()
+        overlay.presentation = presentation
+        overlay.isActive = true
+
+        switch presentation {
+        case .lockScreen:
+            if lockPanels.isEmpty { buildLockPanels() }
+            for panel in lockPanels {
+                panel.allowsKey = false
+                panel.ignoresMouseEvents = false
+                panel.alphaValue = 1
+                panel.orderFrontRegardless()
+            }
+        case .preview:
+            buildPreviewPanels()
             NSApp.activate()
-            panels.first?.makeKeyAndOrderFront(nil)
+            previewPanels.first?.makeKeyAndOrderFront(nil)
         }
 
         player.setHighFrequency(true)
         lyrics.reloadIfNeeded()
 
-        screenObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.rebuild() }
-        }
-
-        // Let the first frame render with isPresented == false, then animate in.
+        // Render one frame in the "before" state, then animate in.
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 16_000_000)
             self?.overlay.present()
@@ -123,95 +157,123 @@ final class LockWidgetController {
     }
 
     func hide(animated: Bool = true) {
-        guard isVisible else { return }
+        guard let current = presentation else { return }
         generation &+= 1
-        let current = generation
+        let token = generation
+        overlay.dismiss()
         guard animated else {
-            tearDown()
+            hidingToken = nil
+            finishHiding(current)
             return
         }
-        overlay.dismiss()
+        hidingToken = token
         Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 280_000_000)
-            guard let self, self.generation == current else { return }
-            self.tearDown()
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard let self, self.generation == token else { return }
+            self.hidingToken = nil
+            self.finishHiding(current)
         }
     }
 
-    private func tearDown() {
-        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
-        screenObserver = nil
-        for panel in panels {
-            panel.orderOut(nil)
-            panel.contentView = nil
-            panel.close()
-        }
-        let wasVisible = !panels.isEmpty
-        panels.removeAll()
-        presentation = nil
-        isAboveLockScreen = false
-        if wasVisible { player.setHighFrequency(false) }
-    }
-
-    private func rebuild() {
-        guard isVisible, let presentation else { return }
-        for panel in panels {
-            panel.orderOut(nil)
-            panel.close()
-        }
-        panels.removeAll()
-        self.presentation = presentation
-        buildPanels()
-    }
-
-    private func buildPanels() {
-        guard let presentation else { return }
-        let screens: [NSScreen]
-        if settings.allDisplays {
-            screens = NSScreen.screens
-        } else {
-            screens = [NSScreen.main ?? NSScreen.screens.first].compactMap { $0 }
-        }
-
-        var lifted = true
-        for screen in screens {
-            let panel = LockWidgetPanel(screen: screen)
-            panel.allowsKey = presentation == .preview
-            let root = LockWidgetView(overlay: overlay, player: player, lyrics: lyrics, settings: settings,
-                                      presentation: presentation,
-                                      onClose: { [weak self] in self?.hide() })
-            let hosting = FirstMouseHostingView(rootView: root)
-            hosting.sizingOptions = []
-            panel.contentView = hosting
-            panel.keyHandler = { [weak self] event in
-                MainActor.assumeIsolated { self?.handleKey(event) ?? false }
+    private func finishHiding(_ which: Presentation) {
+        overlay.isActive = false
+        switch which {
+        case .lockScreen:
+            for panel in lockPanels {
+                panel.alphaValue = 0
+                panel.ignoresMouseEvents = true
+                panel.allowsKey = false
             }
-            panel.scrollHandler = { [weak self] event in
-                MainActor.assumeIsolated {
-                    guard let self else { return false }
-                    return self.overlay.handleScroll(event, hasSyncedLyrics: self.lyrics.syncedLines != nil)
-                }
+        case .preview:
+            for panel in previewPanels {
+                panel.orderOut(nil)
+                panel.contentView = nil
+                panel.close()
             }
-            panel.setFrame(screen.frame, display: true)
-            panel.orderFrontRegardless()
-
-            if presentation == .lockScreen {
-                let attached = lockScreenLayer.map { $0.isAvailable && $0.attach(panel) } ?? false
-                lifted = lifted && attached
-                panel.orderFrontRegardless()
-            }
-            panels.append(panel)
+            previewPanels.removeAll()
         }
-        isAboveLockScreen = presentation == .lockScreen && lifted && !screens.isEmpty
+        if presentation == which {
+            presentation = nil
+            player.setHighFrequency(false)
+        }
     }
 
     /// After unlocking (when the widget wasn't above the lock screen) let it
     /// take keyboard focus so Esc / Space / arrows work.
     func makeInteractive() {
-        guard isVisible else { return }
-        panels.forEach { $0.allowsKey = true }
+        guard presentation == .lockScreen else { return }
+        lockPanels.forEach { $0.allowsKey = true }
         NSApp.activate()
-        panels.first?.makeKeyAndOrderFront(nil)
+        lockPanels.first?.makeKeyAndOrderFront(nil)
+    }
+
+    // MARK: Panels
+
+    private var screens: [NSScreen] {
+        if settings.allDisplays { return NSScreen.screens }
+        return [NSScreen.main ?? NSScreen.screens.first].compactMap { $0 }
+    }
+
+    private func makePanel(for screen: NSScreen) -> LockWidgetPanel {
+        let panel = LockWidgetPanel(screen: screen)
+        let root = LockWidgetView(overlay: overlay, player: player, lyrics: lyrics, settings: settings,
+                                  onClose: { [weak self] in self?.hide() })
+        let hosting = FirstMouseHostingView(rootView: root)
+        hosting.sizingOptions = []
+        panel.contentView = hosting
+        panel.keyHandler = { [weak self] event in
+            MainActor.assumeIsolated { self?.handleKey(event) ?? false }
+        }
+        panel.scrollHandler = { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self else { return false }
+                return self.overlay.handleScroll(event, hasSyncedLyrics: self.lyrics.syncedLines != nil)
+            }
+        }
+        panel.setFrame(screen.frame, display: true)
+        return panel
+    }
+
+    private func buildLockPanels() {
+        for panel in lockPanels {
+            panel.orderOut(nil)
+            panel.close()
+        }
+        lockPanels.removeAll()
+
+        var lifted = !screens.isEmpty
+        for screen in screens {
+            let panel = makePanel(for: screen)
+            let visible = presentation == .lockScreen
+            panel.alphaValue = visible ? 1 : 0
+            panel.ignoresMouseEvents = !visible
+            panel.orderFrontRegardless()
+            let attached = lockScreenLayer.map { $0.isAvailable && $0.attach(panel) } ?? false
+            lifted = lifted && attached
+            panel.orderFrontRegardless()
+            lockPanels.append(panel)
+        }
+        lockPanelsLifted = lifted
+    }
+
+    private func buildPreviewPanels() {
+        for screen in screens {
+            let panel = makePanel(for: screen)
+            panel.allowsKey = true
+            panel.orderFrontRegardless()
+            previewPanels.append(panel)
+        }
+    }
+
+    private func screensChanged() {
+        buildLockPanels()
+        if presentation == .preview {
+            let wasPresented = overlay.isPresented
+            for panel in previewPanels { panel.orderOut(nil); panel.close() }
+            previewPanels.removeAll()
+            buildPreviewPanels()
+            if wasPresented { overlay.present() }
+        }
     }
 
     // MARK: Keys (only reach us in preview, or after unlocking)
