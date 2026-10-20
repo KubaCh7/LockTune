@@ -206,7 +206,8 @@ final class AppSettings: ObservableObject {
             Key.lockWidgetEnabled: true,
             Key.lockWallpaper: true,
             Key.lyricsEnabled: true,
-            Key.widgetBottomInset: 0.12,
+            // Middle of the wallpaper-mode slider (what used to be its lowest point).
+            Key.widgetBottomInset: 0.28,
             Key.plainBottomInset: 0.30,
             Key.plainArtworkScale: 1.0,
             Key.animationFPS: 60,
@@ -233,9 +234,10 @@ final class AppSettings: ObservableObject {
         // Layout v2 moved everything higher: drop positions saved by older builds.
         let layoutVersion = defaults.integer(forKey: Key.layoutVersion)
         if layoutVersion < 2 { defaults.removeObject(forKey: Key.plainBottomInset) }
-        // Layout v3: wallpaper mode may go low again (lyrics have their own limit).
-        if layoutVersion < 3 { defaults.removeObject(forKey: Key.widgetBottomInset) }
-        defaults.set(3, forKey: Key.layoutVersion)
+        // Layout v4: wallpaper mode may go low again (lyrics have their own
+        // limit); start from the new middle position.
+        if layoutVersion < 4 { defaults.removeObject(forKey: Key.widgetBottomInset) }
+        defaults.set(4, forKey: Key.layoutVersion)
         widgetBottomInset = min(max(defaults.double(forKey: Key.widgetBottomInset), Self.minWallpaperBottomInset), 0.6)
         keepDisplayAwake = defaults.bool(forKey: Key.keepDisplayAwake)
         awakeDurationIndex = min(max(defaults.integer(forKey: Key.awakeDurationIndex), 0), Self.awakeDurations.count - 1)

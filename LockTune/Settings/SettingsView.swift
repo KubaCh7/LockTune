@@ -363,7 +363,8 @@ private struct AppearanceSettings: View {
             Section {
                 heightSlider(Binding(get: { 1 - settings.widgetBottomInset },
                                      set: { settings.widgetBottomInset = 1 - $0 }),
-                             range: 0.4...(1 - AppSettings.minWallpaperBottomInset))
+                             // Centred on the old lowest point (72 %), so it can go lower still.
+                             range: 0.48...(1 - AppSettings.minWallpaperBottomInset))
                 sizeSlider($settings.artworkScale)
             } header: {
                 modeHeader("With artwork wallpaper", inUse: settings.lockWallpaper)
@@ -391,7 +392,7 @@ private struct AppearanceSettings: View {
 
             Section {
                 Button("Reset Layout to Defaults") {
-                    settings.widgetBottomInset = 0.12
+                    settings.widgetBottomInset = 0.28
                     settings.artworkScale = 1.6
                     settings.plainBottomInset = 0.30
                     settings.plainArtworkScale = 1.0
