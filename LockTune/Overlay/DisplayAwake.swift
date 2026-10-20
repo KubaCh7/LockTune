@@ -1,32 +1,67 @@
 import Foundation
 import IOKit.pwr_mgt
 
-/// Holds a "prevent display sleep" power assertion (public IOKit API) — used
-/// while the widget is on the lock screen and music plays, so the screen
-/// doesn't go black a few seconds after locking.
+/// Keeps the display on (public IOKit power APIs) while the widget is on the
+/// lock screen: a "prevent display sleep" assertion plus a periodic "user is
+/// active" ping, which also resets the lock screen's own short dim timer.
+@MainActor
 final class DisplayAwake {
-    private var assertionID: IOPMAssertionID = 0
-    private(set) var isHeld = false
+    private var preventID: IOPMAssertionID = 0
+    private var activityID: IOPMAssertionID = 0
+    private var holdsPrevent = false
+    private var heartbeat: Timer?
+    private var deadline: Date?
 
-    func set(_ hold: Bool) {
-        hold ? acquire() : release()
+    var isHeld: Bool { holdsPrevent }
+
+    /// Keeps the display on until `deadline` (nil = until `release()`).
+    func hold(until deadline: Date?) {
+        self.deadline = deadline
+        if let deadline, deadline <= Date() {
+            release()
+            return
+        }
+        if !holdsPrevent {
+            let result = IOPMAssertionCreateWithName(
+                kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
+                IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                "LockTune is showing Now Playing on the lock screen" as CFString,
+                &preventID)
+            holdsPrevent = result == kIOReturnSuccess
+        }
+        ping()
+        if heartbeat == nil {
+            let timer = Timer(timeInterval: 4, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.tick() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            heartbeat = timer
+        }
     }
 
-    private func acquire() {
-        guard !isHeld else { return }
-        let result = IOPMAssertionCreateWithName(
-            kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
-            IOPMAssertionLevel(kIOPMAssertionLevelOn),
-            "LockTune is showing Now Playing on the lock screen" as CFString,
-            &assertionID)
-        isHeld = result == kIOReturnSuccess
+    func release() {
+        heartbeat?.invalidate()
+        heartbeat = nil
+        deadline = nil
+        if holdsPrevent {
+            IOPMAssertionRelease(preventID)
+            holdsPrevent = false
+        }
+        if activityID != 0 {
+            IOPMAssertionRelease(activityID)
+            activityID = 0
+        }
     }
 
-    private func release() {
-        guard isHeld else { return }
-        IOPMAssertionRelease(assertionID)
-        isHeld = false
+    private func tick() {
+        if let deadline, Date() >= deadline {
+            release()
+        } else {
+            ping()
+        }
     }
 
-    deinit { release() }
+    private func ping() {
+        _ = IOPMAssertionDeclareUserActivity("LockTune Now Playing" as CFString, kIOPMUserActiveLocal, &activityID)
+    }
 }

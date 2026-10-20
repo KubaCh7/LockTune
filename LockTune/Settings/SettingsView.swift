@@ -209,7 +209,20 @@ private struct GeneralSettings: View {
 
             Section("Lock screen") {
                 Toggle("Show the music widget when the Mac is locked", isOn: $settings.lockWidgetEnabled)
-                Toggle("Keep the display on while locked and music plays", isOn: $settings.keepDisplayAwake)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Screen stays on after locking: \(AppSettings.awakeTitle(settings.awakeDuration))")
+                    Slider(value: Binding(get: { Double(settings.awakeDurationIndex) },
+                                          set: { settings.awakeDurationIndex = Int($0.rounded()) }),
+                           in: 0...Double(AppSettings.awakeDurations.count - 1), step: 1) {
+                        EmptyView()
+                    } minimumValueLabel: {
+                        Text("Default").font(.caption)
+                    } maximumValueLabel: {
+                        Text("Always").font(.caption)
+                    }
+                    Text("Only while music is playing. With “macOS default” the display turns off after a few seconds as usual.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Toggle("Lock after being idle while music plays", isOn: $settings.idleEnabled)
                 Stepper(value: $settings.idleMinutes, in: 1...120) {
                     Text("Idle time: \(settings.idleMinutes) min")

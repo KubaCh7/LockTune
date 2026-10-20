@@ -96,6 +96,7 @@ final class AppSettings: ObservableObject {
         static let lyricsPosition = "lyricsPosition"
         static let widgetBottomInset = "widgetBottomInset"
         static let keepDisplayAwake = "keepDisplayAwake"
+        static let awakeDurationIndex = "awakeDurationIndex"
         static let wordByWord = "wordByWord"
         static let artworkScale = "artworkScale"
         static let lyricsLead = "lyricsLead"
@@ -125,6 +126,19 @@ final class AppSettings: ObservableObject {
     @Published var widgetBottomInset: Double { didSet { defaults.set(widgetBottomInset, forKey: Key.widgetBottomInset) } }
     /// Keep the display on while the widget is on the lock screen and music plays.
     @Published var keepDisplayAwake: Bool { didSet { defaults.set(keepDisplayAwake, forKey: Key.keepDisplayAwake) } }
+    /// How long the display stays on after locking (index into `awakeDurations`).
+    @Published var awakeDurationIndex: Int { didSet { defaults.set(awakeDurationIndex, forKey: Key.awakeDurationIndex) } }
+
+    /// Seconds; 0 = macOS default (turns off after a few seconds), .infinity = while music plays.
+    static let awakeDurations: [TimeInterval] = [0, 30, 60, 120, 300, 600, 900, 1800, 3600, .infinity]
+
+    var awakeDuration: TimeInterval { Self.awakeDurations[min(max(awakeDurationIndex, 0), Self.awakeDurations.count - 1)] }
+
+    static func awakeTitle(_ seconds: TimeInterval) -> String {
+        if seconds == 0 { return "macOS default" }
+        if seconds.isInfinite { return "Whole time music plays" }
+        return seconds < 60 ? "\(Int(seconds)) s" : "\(Int(seconds / 60)) min"
+    }
     /// Apple Music-style word-by-word highlight of the current lyric line.
     @Published var wordByWord: Bool { didSet { defaults.set(wordByWord, forKey: Key.wordByWord) } }
     /// Artwork size multiplier on the lock screen (0.6 … 1.6).
@@ -146,6 +160,7 @@ final class AppSettings: ObservableObject {
             Key.lyricsEnabled: true,
             Key.widgetBottomInset: 0.25,
             Key.keepDisplayAwake: true,
+            Key.awakeDurationIndex: 9,
             Key.wordByWord: true,
             Key.artworkScale: 1.0,
             Key.lyricsLead: 0.6,
@@ -165,6 +180,7 @@ final class AppSettings: ObservableObject {
         lyricsPosition = defaults.string(forKey: Key.lyricsPosition).flatMap(LyricsPosition.init(rawValue:)) ?? .right
         widgetBottomInset = min(max(defaults.double(forKey: Key.widgetBottomInset), 0.05), 0.6)
         keepDisplayAwake = defaults.bool(forKey: Key.keepDisplayAwake)
+        awakeDurationIndex = min(max(defaults.integer(forKey: Key.awakeDurationIndex), 0), Self.awakeDurations.count - 1)
         wordByWord = defaults.bool(forKey: Key.wordByWord)
         artworkScale = min(max(defaults.double(forKey: Key.artworkScale), 0.6), 1.6)
         lyricsLead = min(max(defaults.double(forKey: Key.lyricsLead), 0), 1.5)

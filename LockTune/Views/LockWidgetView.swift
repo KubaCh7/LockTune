@@ -117,17 +117,18 @@ struct LockWidgetView: View {
         let area = widgetArea(size)
         // Over the normal lock screen, keep lyrics well clear of the user name
         // and the "Touch ID or Enter Password" hint below the widget.
-        let lyricsGuard: CGFloat = showsLyrics && !drawsBackground ? size.height * 0.1 : 0
+        let lyricsGuard: CGFloat = showsLyrics && !drawsBackground ? size.height * 0.14 : 0
+        let height = area.height - lyricsGuard
         Group {
             if player.hasTrack {
                 if showsLyrics {
-                    lyricsLayout(size: size, height: area.height)
+                    lyricsLayout(size: size, height: height)
                 } else {
-                    playerLayout(size: size, height: area.height)
+                    playerLayout(size: size, height: height)
                 }
             }
         }
-        .frame(width: size.width, height: area.height - lyricsGuard, alignment: .bottom)
+        .frame(width: size.width, height: height, alignment: .bottom)
         .offset(y: area.top)
         .shadow(color: drawsBackground ? .clear : .black.opacity(0.35), radius: 18, y: 6)
     }

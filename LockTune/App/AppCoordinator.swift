@@ -17,6 +17,7 @@ final class AppCoordinator: ObservableObject {
     private let lockMonitor = LockMonitor()
     private let displayAwake = DisplayAwake()
     private var lockAttemptTask: Task<Void, Never>?
+    private var lockedAt: Date?
     private var cancellables = Set<AnyCancellable>()
     private var started = false
     /// The widget was put up while locked but couldn't go above the lock screen.
@@ -88,7 +89,7 @@ final class AppCoordinator: ObservableObject {
             .removeDuplicates()
             .sink { [weak self] _ in Task { @MainActor in self?.updateDisplayAwake() } }
             .store(in: &cancellables)
-        settings.$keepDisplayAwake
+        settings.$awakeDurationIndex
             .dropFirst()
             .sink { [weak self] _ in Task { @MainActor in self?.updateDisplayAwake() } }
             .store(in: &cancellables)
@@ -144,6 +145,7 @@ final class AppCoordinator: ObservableObject {
 
     private func lockStateChanged(_ locked: Bool) {
         isScreenLocked = locked
+        lockedAt = locked ? Date() : nil
         if locked {
             nowPlaying.poll()
             updateWidget()
@@ -161,10 +163,12 @@ final class AppCoordinator: ObservableObject {
     }
 
     private func updateDisplayAwake() {
-        displayAwake.set(settings.keepDisplayAwake
-                         && isScreenLocked
-                         && widget.presentation == .lockScreen
-                         && nowPlaying.isPlaying)
+        let duration = settings.awakeDuration
+        guard duration > 0, isScreenLocked, widget.presentation == .lockScreen, nowPlaying.isPlaying else {
+            displayAwake.release()
+            return
+        }
+        displayAwake.hold(until: duration.isInfinite ? nil : (lockedAt ?? Date()).addingTimeInterval(duration))
     }
 
     private func updateWidget() {
