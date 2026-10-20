@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @ObservedObject var coordinator: AppCoordinator
@@ -311,7 +312,7 @@ private struct AppearanceSettings: View {
 
     private func heightSlider(_ value: Binding<Double>, range: ClosedRange<Double>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Height on the lock screen")
+            Text("Player height (artwork + controls)")
             Slider(value: value, in: range) {
                 EmptyView()
             } minimumValueLabel: {
@@ -335,6 +336,21 @@ private struct AppearanceSettings: View {
         }
     }
 
+    private func lyricsOffsetSlider(_ value: Binding<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Lyrics position")
+            Slider(value: value, in: 0...AppSettings.maxLyricsOffset) {
+                EmptyView()
+            } minimumValueLabel: {
+                Text("Higher").font(.caption)
+            } maximumValueLabel: {
+                Text("Lower").font(.caption)
+            }
+            Text("“Higher” (default) keeps lyrics between the clock and your name; lower moves them down the screen.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
     private func sizeSlider(_ value: Binding<Double>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Artwork size: \(Int((value.wrappedValue * 100).rounded())) %")
@@ -350,6 +366,15 @@ private struct AppearanceSettings: View {
 
     var body: some View {
         Form {
+            Section("Presets") {
+                HStack {
+                    Button("Export Preset…") { PresetFiles.export(settings) }
+                    Button("Import Preset…") { PresetFiles.importFile(into: settings) }
+                }
+                Text("Save your whole look (layout, sizes, lyrics, glass, clock) to a file you can share, or load someone else's preset.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             Section("Widget") {
                 Toggle("Artwork wallpaper behind the widget", isOn: $settings.lockWallpaper)
                 Picker("Wallpaper style", selection: $settings.backgroundStyle) {
@@ -366,6 +391,7 @@ private struct AppearanceSettings: View {
                              // Centred on the old lowest point (72 %), so it can go lower still.
                              range: 0.48...(1 - AppSettings.minWallpaperBottomInset))
                 sizeSlider($settings.artworkScale)
+                lyricsOffsetSlider($settings.lyricsOffset)
             } header: {
                 modeHeader("With artwork wallpaper", inUse: settings.lockWallpaper)
             }
@@ -375,7 +401,8 @@ private struct AppearanceSettings: View {
                                      set: { settings.plainBottomInset = 1 - $0 }),
                              range: 0.4...(1 - AppSettings.minPlainBottomInset))
                 sizeSlider($settings.plainArtworkScale)
-                Text("Here the lowest position keeps the widget above your name and “Touch ID or Enter Password”. Lyrics always stay above them in both modes.")
+                lyricsOffsetSlider($settings.plainLyricsOffset)
+                Text("Here the lowest player position keeps it above your name and “Touch ID or Enter Password”. Artwork size, player height and lyrics position are independent.")
                     .font(.caption).foregroundStyle(.secondary)
             } header: {
                 modeHeader("Without wallpaper (normal lock screen)", inUse: !settings.lockWallpaper)
@@ -397,6 +424,8 @@ private struct AppearanceSettings: View {
                     settings.plainBottomInset = 0.30
                     settings.plainArtworkScale = 1.0
                     settings.lyricsScale = 0.85
+                    settings.lyricsOffset = 0
+                    settings.plainLyricsOffset = 0
                 }
             }
 
@@ -452,5 +481,48 @@ private struct AppearanceSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+
+/// Save/open panels for presets.
+@MainActor
+enum PresetFiles {
+    static func export(_ settings: AppSettings) {
+        let panel = NSSavePanel()
+        panel.title = "Export LockTune Preset"
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "LockTune Preset.json"
+        NSApp.activate()
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let name = url.deletingPathExtension().lastPathComponent
+            try settings.exportPresetData(name: name).write(to: url, options: .atomic)
+        } catch {
+            show("Couldn't export the preset", error.localizedDescription, style: .warning)
+        }
+    }
+
+    static func importFile(into settings: AppSettings) {
+        let panel = NSOpenPanel()
+        panel.title = "Import LockTune Preset"
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        NSApp.activate()
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let name = try settings.importPreset(Data(contentsOf: url))
+            show("Preset imported", "“\(name ?? url.deletingPathExtension().lastPathComponent)” is now active.", style: .informational)
+        } catch {
+            show("Couldn't import the preset", "This file isn't a LockTune preset.", style: .warning)
+        }
+    }
+
+    private static func show(_ title: String, _ text: String, style: NSAlert.Style) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = text
+        alert.alertStyle = style
+        alert.runModal()
     }
 }

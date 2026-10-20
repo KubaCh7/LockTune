@@ -161,7 +161,7 @@ private struct LyricsStack: View {
             .mask(
                 LinearGradient(stops: [
                     .init(color: .clear, location: 0),
-                    .init(color: .black, location: 0.06),
+                    .init(color: .black, location: 0.12),
                     .init(color: .black, location: 0.86),
                     .init(color: .clear, location: 1),
                 ], startPoint: .top, endPoint: .bottom)

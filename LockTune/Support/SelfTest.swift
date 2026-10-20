@@ -57,6 +57,27 @@ enum SelfTest {
                && plainLine.wordProgress(at: 9).allSatisfy { $0 == 1 },
                "Estimated word progress", estimated.map { String(format: "%.2f", $0) }.joined(separator: " "))
 
+        // Presets: export from one settings store, import into another.
+        if let suiteA = UserDefaults(suiteName: "LockTuneSelfTestA"),
+           let suiteB = UserDefaults(suiteName: "LockTuneSelfTestB") {
+            suiteA.removePersistentDomain(forName: "LockTuneSelfTestA")
+            suiteB.removePersistentDomain(forName: "LockTuneSelfTestB")
+            let source = AppSettings(defaults: suiteA)
+            source.artworkScale = 2.2
+            source.lyricsOffset = 0.15
+            source.glassLevel = .mega
+            source.lyricsPosition = .left
+            let target = AppSettings(defaults: suiteB)
+            let data = try? source.exportPresetData(name: "Test")
+            let name = data.flatMap { try? target.importPreset($0) }
+            report(name == "Test" && abs(target.artworkScale - 2.2) < 0.001 && abs(target.lyricsOffset - 0.15) < 0.001
+                   && target.glassLevel == .mega && target.lyricsPosition == .left,
+                   "Preset export/import round trip")
+            report((try? target.importPreset(Data("{}".utf8))) == nil, "Preset import rejects other JSON")
+            suiteA.removePersistentDomain(forName: "LockTuneSelfTestA")
+            suiteB.removePersistentDomain(forName: "LockTuneSelfTestB")
+        }
+
         // 3. Private functions needed for the lock screen / locking.
         let missing = SkyLightLockScreenLayer.missingSymbols
         report(missing.isEmpty, "Window-server functions for the lock-screen layer",

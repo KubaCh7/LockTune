@@ -101,24 +101,38 @@ struct LockWidgetView: View {
 
     // MARK: Widget layout
     //
-    // Vertical zones (fractions of the screen height):
-    //   0.00–0.22  clock (system or ours)
-    //   0.22–0.70  lyrics — never lower: the user name and "Touch ID or Enter
-    //              Password" sit around 0.75–0.85 and macOS draws them above
-    //              everything, even our wallpaper
-    //   artwork + controls may go down to the height chosen in Settings
+    // Three independent settings (per mode):
+    //   • artwork size    — the artwork simply grows; if the block no longer
+    //                        fits above the chosen height it extends lower
+    //   • player height   — where the bottom of artwork + controls sits
+    //   • lyrics position — moves the lyrics block up/down. By default it sits
+    //                        between the clock and the user name.
 
     private static let topFraction: CGFloat = 0.22
-    private static let lyricsBottomFraction: CGFloat = 0.70
+    /// Lyrics block height (fraction of the screen height).
+    private static let lyricsHeightFraction: CGFloat = 0.44
+    private static let controlsHeight: CGFloat = 150
 
     private func top(_ size: CGSize) -> CGFloat { size.height * Self.topFraction }
+
     /// Bottom edge for artwork + controls (user setting).
     private func widgetBottom(_ size: CGSize) -> CGFloat {
         max(size.height * (1 - settings.activeBottomInset), top(size) + size.height * 0.25)
     }
-    /// Bottom edge for lyrics (fixed, safe).
-    private func lyricsBottom(_ size: CGSize) -> CGFloat {
-        min(widgetBottom(size), size.height * Self.lyricsBottomFraction)
+
+    /// Top of the lyrics block: below the clock, moved down by the lyrics slider.
+    private func lyricsTop(_ size: CGSize) -> CGFloat {
+        size.height * (0.26 + settings.activeLyricsOffset)
+    }
+
+    private func lyricsHeight(_ size: CGSize) -> CGFloat {
+        min(size.height * Self.lyricsHeightFraction, size.height * 0.98 - lyricsTop(size))
+    }
+
+    /// Top of a block of `height` whose bottom should sit at the chosen
+    /// height — but never above the clock area (then it extends lower).
+    private func blockTop(height: CGFloat, size: CGSize) -> CGFloat {
+        max(top(size), widgetBottom(size) - height)
     }
 
     @ViewBuilder
@@ -139,72 +153,70 @@ struct LockWidgetView: View {
         .shadow(color: drawsBackground ? .clear : .black.opacity(0.35), radius: 18, y: 6)
     }
 
-    /// Artwork + controls, centred, ending at the chosen height.
+    /// Largest artwork that still fits on screen with the controls below it.
+    private func maxArtwork(_ size: CGSize, width: CGFloat) -> CGFloat {
+        min(width, size.height * 0.97 - top(size) - Self.controlsHeight - 20)
+    }
+
+    /// Artwork + controls, centred.
     private func playerLayout(size: CGSize) -> some View {
-        let height = widgetBottom(size) - top(size)
-        let controlsHeight: CGFloat = 150
-        // 100 % is a medium size; the slider grows it up to the free space.
         let base = min(size.height * 0.2, size.width * 0.2)
-        let art = max(90, min(base * settings.activeArtworkScale, height - controlsHeight - 24, size.width * 0.5))
+        let art = max(90, min(base * settings.activeArtworkScale, maxArtwork(size, width: size.width * 0.5)))
+        let blockHeight = art + 20 + Self.controlsHeight
         return VStack(spacing: 20) {
             artwork(side: art)
             controls(width: max(art * 0.95, 300))
         }
-        .frame(width: size.width, height: height, alignment: .bottom)
-        .offset(y: top(size))
+        .frame(width: size.width, height: blockHeight, alignment: .top)
+        .offset(y: blockTop(height: blockHeight, size: size))
     }
 
-    /// Screen split in two halves: artwork + controls fill one half (as big as
-    /// the size slider allows), lyrics sit in the other half above the user name.
+    /// Screen split in two halves: artwork + controls in one (as big as the
+    /// size slider says), lyrics in the other at their own height.
     private func sideBySideLayout(size: CGSize) -> some View {
         let half = size.width / 2
-        let columnHeight = widgetBottom(size) - top(size)
-        let lyricsHeight = lyricsBottom(size) - top(size)
         let base = min(size.height * 0.2, size.width * 0.16)
-        let art = max(90, min(base * settings.activeArtworkScale, columnHeight - 170, half * 0.86))
+        let art = max(90, min(base * settings.activeArtworkScale, maxArtwork(size, width: half * 0.88)))
+        let blockHeight = art + 18 + Self.controlsHeight
         let lyricsOnRight = settings.lyricsPosition == .right
 
-        let artColumn = VStack(spacing: 18) {
-            artwork(side: art)
-            controls(width: max(min(art, half * 0.86), 300))
-        }
-        .frame(width: half, height: columnHeight)
-
-        let lyricsColumn = lyricsView(alignment: .leading)
-            .frame(width: half * 0.82, height: lyricsHeight)
-            .frame(width: half, height: columnHeight, alignment: lyricsOnRight ? .topLeading : .topTrailing)
-            .transition(.opacity.combined(with: .offset(x: lyricsOnRight ? 40 : -40)))
-
-        return HStack(spacing: 0) {
-            if lyricsOnRight {
-                artColumn
-                lyricsColumn
-            } else {
-                lyricsColumn
-                artColumn
+        return ZStack(alignment: .topLeading) {
+            VStack(spacing: 18) {
+                artwork(side: art)
+                controls(width: max(min(art, half * 0.88), 300))
             }
+            .frame(width: half, height: blockHeight, alignment: .top)
+            .offset(x: lyricsOnRight ? 0 : half, y: blockTop(height: blockHeight, size: size))
+
+            lyricsView(alignment: .leading)
+                .frame(width: half * 0.82, height: lyricsHeight(size))
+                .frame(width: half, alignment: lyricsOnRight ? .leading : .trailing)
+                .offset(x: lyricsOnRight ? half : 0, y: lyricsTop(size))
+                .transition(.opacity.combined(with: .offset(x: lyricsOnRight ? 40 : -40)))
         }
-        .frame(width: size.width, height: columnHeight, alignment: .top)
-        .offset(y: top(size))
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
     }
 
-    /// Big centred lyrics, a small artwork + controls row underneath — all
-    /// above the user name.
+    /// Big centred lyrics, a small artwork + controls row underneath.
     private func centerLyricsLayout(size: CGSize) -> some View {
         let rowHeight: CGFloat = 150
-        let bottom = min(widgetBottom(size), size.height * 0.74)
-        let lyricsHeight = max(160, bottom - top(size) - rowHeight - 16)
-        return VStack(spacing: 16) {
+        let textTop = lyricsTop(size)
+        let textHeight = max(160, lyricsHeight(size) - rowHeight - 16)
+        let rowTop = max(textTop + textHeight + 16, widgetBottom(size) - rowHeight)
+        return ZStack(alignment: .topLeading) {
             lyricsView(alignment: .center)
-                .frame(width: min(size.width * 0.62, 900), height: lyricsHeight)
+                .frame(width: min(size.width * 0.62, 900), height: textHeight)
+                .frame(width: size.width)
+                .offset(y: textTop)
                 .transition(.opacity)
             HStack(spacing: 16) {
                 artwork(side: min(76 * settings.activeArtworkScale, rowHeight))
                 controls(width: 340)
             }
+            .frame(width: size.width)
+            .offset(y: min(rowTop, size.height * 0.97 - rowHeight))
         }
-        .frame(width: size.width, alignment: .top)
-        .offset(y: top(size))
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
     }
 
     private func lyricsView(alignment: LyricsAlignment) -> some View {

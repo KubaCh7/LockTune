@@ -117,6 +117,8 @@ final class AppSettings: ObservableObject {
         static let animationFPS = "animationFPS"
         static let lyricsScale = "lyricsScale"
         static let glassLevel = "glassLevel"
+        static let lyricsOffset = "lyricsOffset"
+        static let plainLyricsOffset = "plainLyricsOffset"
         static let layoutVersion = "layoutVersion"
         static let lyricsLead = "lyricsLead"
         static let lyricsEnabled = "lyricsEnabled"
@@ -173,6 +175,12 @@ final class AppSettings: ObservableObject {
 
     /// How much Liquid Glass the widget uses.
     @Published var glassLevel: GlassLevel { didSet { defaults.set(glassLevel.rawValue, forKey: Key.glassLevel) } }
+
+    /// Moves the lyrics block down (fraction of screen height, 0 … 0.4), per mode.
+    @Published var lyricsOffset: Double { didSet { defaults.set(lyricsOffset, forKey: Key.lyricsOffset) } }
+    @Published var plainLyricsOffset: Double { didSet { defaults.set(plainLyricsOffset, forKey: Key.plainLyricsOffset) } }
+    static let maxLyricsOffset = 0.4
+    var activeLyricsOffset: Double { lockWallpaper ? lyricsOffset : plainLyricsOffset }
 
     /// Lyrics text size multiplier (0.6 … 1.4).
     @Published var lyricsScale: Double { didSet { defaults.set(lyricsScale, forKey: Key.lyricsScale) } }
@@ -245,6 +253,8 @@ final class AppSettings: ObservableObject {
         artworkScale = min(max(defaults.double(forKey: Key.artworkScale), 0.6), Self.maxArtworkScale)
         plainBottomInset = min(max(defaults.double(forKey: Key.plainBottomInset), Self.minPlainBottomInset), 0.6)
         plainArtworkScale = min(max(defaults.double(forKey: Key.plainArtworkScale), 0.6), Self.maxArtworkScale)
+        lyricsOffset = min(max(defaults.double(forKey: Key.lyricsOffset), 0), Self.maxLyricsOffset)
+        plainLyricsOffset = min(max(defaults.double(forKey: Key.plainLyricsOffset), 0), Self.maxLyricsOffset)
         glassLevel = defaults.string(forKey: Key.glassLevel).flatMap(GlassLevel.init(rawValue:)) ?? .normal
         lyricsScale = min(max(defaults.double(forKey: Key.lyricsScale), 0.6), 1.4)
         let fps = defaults.integer(forKey: Key.animationFPS)
@@ -253,5 +263,98 @@ final class AppSettings: ObservableObject {
         lyricsEnabled = defaults.bool(forKey: Key.lyricsEnabled)
         preferredSource = defaults.string(forKey: Key.preferredSource).flatMap(PreferredSource.init(rawValue:)) ?? .automatic
         allDisplays = defaults.bool(forKey: Key.allDisplays)
+    }
+}
+
+
+// MARK: - Presets
+
+/// A shareable look: everything about how the widget appears (not the
+/// shortcut, launch-at-login or the music source). Saved as JSON.
+struct LockTunePreset: Codable {
+    var format = "LockTune preset"
+    var version = 1
+    var name: String?
+
+    var lockWallpaper: Bool?
+    var backgroundStyle: String?
+    var widgetBottomInset: Double?
+    var artworkScale: Double?
+    var lyricsOffset: Double?
+    var plainBottomInset: Double?
+    var plainArtworkScale: Double?
+    var plainLyricsOffset: Double?
+    var lyricsEnabled: Bool?
+    var lyricsPosition: String?
+    var lyricsScale: Double?
+    var lyricsLead: Double?
+    var wordByWord: Bool?
+    var clockFont: String?
+    var clockWeight: String?
+    var glassLevel: String?
+    var animationFPS: Int?
+    var awakeDurationIndex: Int?
+}
+
+extension AppSettings {
+    func makePreset(name: String?) -> LockTunePreset {
+        var p = LockTunePreset()
+        p.name = name
+        p.lockWallpaper = lockWallpaper
+        p.backgroundStyle = backgroundStyle.rawValue
+        p.widgetBottomInset = widgetBottomInset
+        p.artworkScale = artworkScale
+        p.lyricsOffset = lyricsOffset
+        p.plainBottomInset = plainBottomInset
+        p.plainArtworkScale = plainArtworkScale
+        p.plainLyricsOffset = plainLyricsOffset
+        p.lyricsEnabled = lyricsEnabled
+        p.lyricsPosition = lyricsPosition.rawValue
+        p.lyricsScale = lyricsScale
+        p.lyricsLead = lyricsLead
+        p.wordByWord = wordByWord
+        p.clockFont = clockFont.rawValue
+        p.clockWeight = clockWeight.rawValue
+        p.glassLevel = glassLevel.rawValue
+        p.animationFPS = animationFPS
+        p.awakeDurationIndex = awakeDurationIndex
+        return p
+    }
+
+    func exportPresetData(name: String?) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return try encoder.encode(makePreset(name: name))
+    }
+
+    /// Applies every value present in the preset (missing ones are kept),
+    /// clamped to the valid ranges. Returns the preset's name, if any.
+    @discardableResult
+    func importPreset(_ data: Data) throws -> String? {
+        let p = try JSONDecoder().decode(LockTunePreset.self, from: data)
+        guard p.format == "LockTune preset" else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        func clamp(_ v: Double, _ lo: Double, _ hi: Double) -> Double { min(max(v, lo), hi) }
+
+        if let v = p.lockWallpaper { lockWallpaper = v }
+        if let v = p.backgroundStyle.flatMap(BackgroundStyle.init(rawValue:)) { backgroundStyle = v }
+        if let v = p.widgetBottomInset { widgetBottomInset = clamp(v, Self.minWallpaperBottomInset, 0.6) }
+        if let v = p.artworkScale { artworkScale = clamp(v, 0.6, Self.maxArtworkScale) }
+        if let v = p.lyricsOffset { lyricsOffset = clamp(v, 0, Self.maxLyricsOffset) }
+        if let v = p.plainBottomInset { plainBottomInset = clamp(v, Self.minPlainBottomInset, 0.6) }
+        if let v = p.plainArtworkScale { plainArtworkScale = clamp(v, 0.6, Self.maxArtworkScale) }
+        if let v = p.plainLyricsOffset { plainLyricsOffset = clamp(v, 0, Self.maxLyricsOffset) }
+        if let v = p.lyricsEnabled { lyricsEnabled = v }
+        if let v = p.lyricsPosition.flatMap(LyricsPosition.init(rawValue:)) { lyricsPosition = v }
+        if let v = p.lyricsScale { lyricsScale = clamp(v, 0.6, 1.4) }
+        if let v = p.lyricsLead { lyricsLead = clamp(v, 0, 1.5) }
+        if let v = p.wordByWord { wordByWord = v }
+        if let v = p.clockFont.flatMap(ClockFontStyle.init(rawValue:)) { clockFont = v }
+        if let v = p.clockWeight.flatMap(ClockWeight.init(rawValue:)) { clockWeight = v }
+        if let v = p.glassLevel.flatMap(GlassLevel.init(rawValue:)) { glassLevel = v }
+        if let v = p.animationFPS, Self.fpsOptions.contains(v) { animationFPS = v }
+        if let v = p.awakeDurationIndex { awakeDurationIndex = min(max(v, 0), Self.awakeDurations.count - 1) }
+        return p.name
     }
 }
