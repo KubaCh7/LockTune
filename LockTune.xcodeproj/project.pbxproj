@@ -22,6 +22,7 @@
 		0F48C3B6BD6CD7AB55B16D58 /* NowPlayingProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07166968E2927B9EB848CD61 /* NowPlayingProvider.swift */; };
 		D518E475A13F093B5340D366 /* OverlayState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F247E63AEA72702D4CFAB090 /* OverlayState.swift */; };
 		B4F8216295EDF718238417B7 /* OverlayWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C71236AF0F82A57E7FFED11 /* OverlayWindowController.swift */; };
+		89680AB20F8FE6A257BB5206 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2D0ECC818F0BCB4FB9570B41 /* Assets.xcassets */; };
 		325012A7C4C4ACA7E942C9F9 /* HotkeyRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F489E21C05AC7C5172337B8 /* HotkeyRecorderView.swift */; };
 		7AA3083D1D5F2BCB1365A5E4 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB827D149D67CE7F184ADA79 /* LaunchAtLogin.swift */; };
 		C333D0C8515CA3772E24D5CD /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 302BDDAD4BC7CAD3BB6CE794 /* SettingsView.swift */; };
@@ -54,6 +55,7 @@
 		07166968E2927B9EB848CD61 /* NowPlayingProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingProvider.swift; sourceTree = "<group>"; };
 		F247E63AEA72702D4CFAB090 /* OverlayState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayState.swift; sourceTree = "<group>"; };
 		3C71236AF0F82A57E7FFED11 /* OverlayWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayWindowController.swift; sourceTree = "<group>"; };
+		2D0ECC818F0BCB4FB9570B41 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0F489E21C05AC7C5172337B8 /* HotkeyRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyRecorderView.swift; sourceTree = "<group>"; };
 		DB827D149D67CE7F184ADA79 /* LaunchAtLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLogin.swift; sourceTree = "<group>"; };
 		302BDDAD4BC7CAD3BB6CE794 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -125,6 +127,14 @@
 			path = Overlay;
 			sourceTree = "<group>";
 		};
+		78293C213848B86FA7E3E3C8 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				2D0ECC818F0BCB4FB9570B41 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		D5315D4D3455F012BCA802AE /* Settings */ = {
 			isa = PBXGroup;
 			children = (
@@ -175,6 +185,7 @@
 				5258596AD5CE26889CA09E0D /* Lyrics */,
 				252A1F0BDAA151DE9B55B524 /* NowPlaying */,
 				641F9698BA620E2CABA1C607 /* Overlay */,
+				78293C213848B86FA7E3E3C8 /* Resources */,
 				D5315D4D3455F012BCA802AE /* Settings */,
 				A9AE47250539F37226E64AEE /* Support */,
 				401664EDA51CE9A2D3453A15 /* Triggers */,
@@ -257,6 +268,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				89680AB20F8FE6A257BB5206 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -346,6 +358,7 @@
 		6A79C94DB2EB7C79AF3592F5 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = LockTune/Support/LockTune.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
@@ -371,6 +384,7 @@
 		68AFC219BD8EB07814E31001 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = LockTune/Support/LockTune.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;

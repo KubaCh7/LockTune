@@ -1,0 +1,68 @@
+name: Build LockTune
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Build (universal, ad-hoc signed)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project LockTune.xcodeproj \
+            -scheme LockTune \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" \
+            build 2>&1 | tee build.log | grep -E "error:|warning: .*(isolated|Sendable)|BUILD (SUCCEEDED|FAILED)" || true
+          test -d build/Build/Products/Release/LockTune.app
+
+      - name: Show compiler errors
+        if: failure()
+        run: grep -E "error:" -A3 build.log | head -200 || true
+
+      - name: Package .dmg and .zip
+        run: |
+          APP=build/Build/Products/Release/LockTune.app
+          codesign --force --deep --options runtime \
+            --entitlements LockTune/Support/LockTune.entitlements --sign - "$APP"
+          codesign --verify --verbose=2 "$APP"
+          mkdir -p dmg
+          cp -R "$APP" dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "LockTune" -srcfolder dmg -ov -format UDZO LockTune.dmg
+          ditto -c -k --keepParent "$APP" LockTune-app.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LockTune
+          path: |
+            LockTune.dmg
+            LockTune-app.zip
+
+      - name: Publish "latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest LockTune.dmg LockTune-app.zip \
+            --title "LockTune – latest build" \
+            --notes "Download **LockTune.dmg**, open it and drag LockTune into Applications. First launch: right-click → Open (or System Settings → Privacy & Security → Open Anyway), because the app isn't notarized. Built from ${{ github.sha }}."

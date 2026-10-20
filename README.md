@@ -6,7 +6,16 @@ It does not include a notch, Dynamic Island or menu-bar pill widget. The app is 
 
 ---
 
-## Setup
+## Install (ready-made app)
+
+1. Open the repo's **Releases** page and download **LockTune.dmg** from the release named *latest*. GitHub Actions builds it on a Mac on every push to `main`.
+2. Open the .dmg and drag **LockTune** onto **Applications**.
+3. On first launch, macOS blocks it because the app isn't notarized (that needs a paid Apple Developer account). Fix it once:
+   - **macOS 15+:** try opening the app, then go to System Settings → Privacy & Security, scroll down and click **Open Anyway**.
+   - **macOS 14:** right-click the app → **Open** → **Open**.
+4. A ♪ icon appears in the menu bar. Play music and press **⌃⌘L**.
+
+## Building from source
 
 1. Open `LockTune.xcodeproj` in Xcode 15 or later.
 2. Select the **LockTune** target, open **Signing & Capabilities** and choose your **Team**.
@@ -124,4 +133,4 @@ To add a new source (for example a browser or another player), implement `NowPla
    - It must include ⌘ or ⌃. Since macOS 15, shortcuts using only ⌥/⇧ are rejected.
    - It doesn't fire while macOS "secure input" is on, for example while a password field is focused.
 7. **Not sandboxed**, so it can't go on the Mac App Store as-is. Scripting other apps from the sandbox needs temporary-exception entitlements.
-8. **Not compiled yet.** The project was written in a Linux environment without Xcode. The Swift files pass a syntax check and the `.xcodeproj` parses correctly, but nothing has been compiled or run on a Mac. Expect possibly a few small compiler fixes on the first build, and please report them.
+8. Releases are **ad-hoc signed, not notarized**, so Gatekeeper asks you to confirm the first launch (see Install above).
