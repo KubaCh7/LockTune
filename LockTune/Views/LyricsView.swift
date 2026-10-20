@@ -18,12 +18,14 @@ struct LyricsView: View {
     var wordByWord = true
     /// Seconds the highlight runs ahead of the playback position.
     var lead: TimeInterval = 0.6
+    /// Text size multiplier.
+    var textScale: CGFloat = 0.85
 
     var body: some View {
         switch lyrics.state {
         case .loaded(.synced(let lines)):
             SyncedLyricsView(lines: lines, revision: lyrics.revision, player: player, overlay: overlay,
-                             alignment: alignment, wordByWord: wordByWord, lead: lead)
+                             alignment: alignment, wordByWord: wordByWord, lead: lead, textScale: textScale)
         case .loaded(.plain(let lines)):
             PlainLyricsView(lines: lines, alignment: alignment)
         case .loaded(.instrumental):
@@ -59,6 +61,7 @@ private struct SyncedLyricsView: View {
     let wordByWord: Bool
     /// Lines are highlighted slightly early, as Apple Music does (adjustable).
     let lead: TimeInterval
+    let textScale: CGFloat
     @Environment(\.frameInterval) private var frameInterval
 
     var body: some View {
@@ -75,6 +78,7 @@ private struct SyncedLyricsView: View {
                         isPlaying: player.isPlaying,
                         alignment: alignment,
                         wordByWord: wordByWord,
+                        textScale: textScale,
                         onSeek: { player.seek(to: $0) })
         }
     }
@@ -99,6 +103,7 @@ private struct LyricsStack: View {
     let isPlaying: Bool
     let alignment: LyricsAlignment
     let wordByWord: Bool
+    let textScale: CGFloat
     let onSeek: (TimeInterval) -> Void
 
     @State private var heights: [Int: CGFloat] = [:]
@@ -107,9 +112,10 @@ private struct LyricsStack: View {
 
     var body: some View {
         GeometryReader { geo in
-            let fontSize = min(max(geo.size.width * 0.058, 24), 46)
-            let spacing = fontSize * 0.45
-            let anchor = geo.size.height * (alignment == .center ? 0.38 : 0.28)
+            let fontSize = min(max(geo.size.width * 0.05, 18), 42) * textScale
+            let spacing = fontSize * 0.3
+            // Current line near the top so several upcoming lines are visible.
+            let anchor = geo.size.height * (alignment == .center ? 0.3 : 0.16)
             let tops = lineTops(spacing: spacing, estimatedHeight: fontSize * 1.5)
             let focus = min(max(activeIndex, 0), max(lines.count - 1, 0))
             let focusTop = tops.isEmpty ? 0 : tops[focus]
@@ -155,8 +161,8 @@ private struct LyricsStack: View {
             .mask(
                 LinearGradient(stops: [
                     .init(color: .clear, location: 0),
-                    .init(color: .black, location: 0.1),
-                    .init(color: .black, location: 0.8),
+                    .init(color: .black, location: 0.06),
+                    .init(color: .black, location: 0.86),
                     .init(color: .clear, location: 1),
                 ], startPoint: .top, endPoint: .bottom)
             )
@@ -186,13 +192,13 @@ private struct LyricsStack: View {
 
     private func opacity(distance: Int, isActive: Bool) -> Double {
         if isActive { return 1 }
-        if isBrowsing { return 0.6 }
-        return max(0.16, 0.46 - Double(distance - 1) * 0.06)
+        if isBrowsing { return 0.65 }
+        return max(0.28, 0.6 - Double(distance - 1) * 0.06)
     }
 
     private func blur(distance: Int) -> CGFloat {
-        guard !isBrowsing, distance > 0, distance <= 10 else { return 0 }
-        return min(CGFloat(distance) * 0.9, 4.5)
+        guard !isBrowsing, distance > 1, distance <= 10 else { return 0 }
+        return min(CGFloat(distance - 1) * 0.6, 2.5)
     }
 
     /// Lines below the current one follow a little later than the ones above.

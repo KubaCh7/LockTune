@@ -115,6 +115,8 @@ final class AppSettings: ObservableObject {
         static let plainBottomInset = "plainBottomInset"
         static let plainArtworkScale = "plainArtworkScale"
         static let animationFPS = "animationFPS"
+        static let lyricsScale = "lyricsScale"
+        static let layoutVersion = "layoutVersion"
         static let lyricsLead = "lyricsLead"
         static let lyricsEnabled = "lyricsEnabled"
         static let preferredSource = "preferredSource"
@@ -168,13 +170,18 @@ final class AppSettings: ObservableObject {
     static let fpsOptions = [30, 60, 120]
     var frameInterval: Double { 1.0 / Double(max(animationFPS, 1)) }
 
-    /// Over the normal lock screen the widget must stay above the user name
-    /// and the "Touch ID or Enter Password" hint (they sit around 75–85 % down).
-    static let minPlainBottomInset = 0.27
+    /// Lyrics text size multiplier (0.6 … 1.4).
+    @Published var lyricsScale: Double { didSet { defaults.set(lyricsScale, forKey: Key.lyricsScale) } }
+
+    /// The user name and "Touch ID or Enter Password" sit around 75–85 % down
+    /// the screen and macOS draws them above everything else, even our
+    /// wallpaper — so in both modes the widget must end above ~72 %.
+    static let minBottomInset = 0.28
+    static let minPlainBottomInset = minBottomInset
 
     /// Layout values for the current mode.
     var activeBottomInset: Double {
-        lockWallpaper ? widgetBottomInset : max(plainBottomInset, Self.minPlainBottomInset)
+        max(lockWallpaper ? widgetBottomInset : plainBottomInset, Self.minBottomInset)
     }
     var activeArtworkScale: Double { lockWallpaper ? artworkScale : plainArtworkScale }
     /// How many seconds early lyrics are highlighted (0 … 1.5).
@@ -192,10 +199,11 @@ final class AppSettings: ObservableObject {
             Key.lockWidgetEnabled: true,
             Key.lockWallpaper: true,
             Key.lyricsEnabled: true,
-            Key.widgetBottomInset: 0.12,
-            Key.plainBottomInset: 0.29,
+            Key.widgetBottomInset: 0.30,
+            Key.plainBottomInset: 0.30,
             Key.plainArtworkScale: 1.0,
             Key.animationFPS: 60,
+            Key.lyricsScale: 0.85,
             Key.keepDisplayAwake: true,
             Key.awakeDurationIndex: 9,
             Key.wordByWord: true,
@@ -215,13 +223,20 @@ final class AppSettings: ObservableObject {
         clockWeight = defaults.string(forKey: Key.clockWeight).flatMap(ClockWeight.init(rawValue:)) ?? .regular
         backgroundStyle = defaults.string(forKey: Key.backgroundStyle).flatMap(BackgroundStyle.init(rawValue:)) ?? .blurred
         lyricsPosition = defaults.string(forKey: Key.lyricsPosition).flatMap(LyricsPosition.init(rawValue:)) ?? .right
-        widgetBottomInset = min(max(defaults.double(forKey: Key.widgetBottomInset), 0.05), 0.6)
+        // Layout v2 moved everything higher: drop positions saved by older builds.
+        if defaults.integer(forKey: Key.layoutVersion) < 2 {
+            defaults.removeObject(forKey: Key.widgetBottomInset)
+            defaults.removeObject(forKey: Key.plainBottomInset)
+            defaults.set(2, forKey: Key.layoutVersion)
+        }
+        widgetBottomInset = min(max(defaults.double(forKey: Key.widgetBottomInset), Self.minBottomInset), 0.6)
         keepDisplayAwake = defaults.bool(forKey: Key.keepDisplayAwake)
         awakeDurationIndex = min(max(defaults.integer(forKey: Key.awakeDurationIndex), 0), Self.awakeDurations.count - 1)
         wordByWord = defaults.bool(forKey: Key.wordByWord)
         artworkScale = min(max(defaults.double(forKey: Key.artworkScale), 0.6), 1.6)
         plainBottomInset = min(max(defaults.double(forKey: Key.plainBottomInset), Self.minPlainBottomInset), 0.6)
         plainArtworkScale = min(max(defaults.double(forKey: Key.plainArtworkScale), 0.6), 1.6)
+        lyricsScale = min(max(defaults.double(forKey: Key.lyricsScale), 0.6), 1.4)
         let fps = defaults.integer(forKey: Key.animationFPS)
         animationFPS = Self.fpsOptions.contains(fps) ? fps : 60
         lyricsLead = min(max(defaults.double(forKey: Key.lyricsLead), 0), 1.5)

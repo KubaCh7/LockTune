@@ -108,18 +108,16 @@ struct LockWidgetView: View {
     }
 
     private func widgetArea(_ size: CGSize) -> Area {
-        let top = size.height * 0.24
+        let top = size.height * 0.22
         let bottom = size.height * (1 - settings.activeBottomInset)
-        return Area(top: top, height: max(bottom - top, size.height * 0.22))
+        return Area(top: top, height: max(bottom - top, size.height * 0.2))
     }
 
     @ViewBuilder
     private func content(size: CGSize) -> some View {
         let area = widgetArea(size)
-        // Over the normal lock screen, keep lyrics well clear of the user name
-        // and the "Touch ID or Enter Password" hint below the widget.
-        let lyricsGuard: CGFloat = showsLyrics && !settings.lockWallpaper ? size.height * 0.06 : 0
-        let height = area.height - lyricsGuard
+        // The area already ends above the user name / "Touch ID or Enter Password".
+        let height = area.height
         Group {
             if player.hasTrack {
                 if showsLyrics {
@@ -136,8 +134,10 @@ struct LockWidgetView: View {
 
     private func playerLayout(size: CGSize, height: CGFloat) -> some View {
         let controlsHeight: CGFloat = 150
-        let wanted = min(height - controlsHeight - 24, size.width * 0.24) * settings.activeArtworkScale
-        let art = max(90, min(wanted, height - controlsHeight - 24, size.width * 0.4))
+        // 100 % is a medium size, so the size slider can both shrink and grow
+        // the artwork (up to the space left above the controls).
+        let base = min(size.height * 0.2, size.width * 0.2)
+        let art = max(90, min(base * settings.activeArtworkScale, height - controlsHeight - 24, size.width * 0.4))
         return VStack(spacing: 20) {
             artwork(side: art)
             controls(width: max(art * 0.95, 300))
@@ -149,8 +149,8 @@ struct LockWidgetView: View {
     private func lyricsLayout(size: CGSize, height: CGFloat) -> some View {
         switch settings.lyricsPosition {
         case .right, .left:
-            let art = max(90, min(min(height * 0.45, size.width * 0.2) * settings.activeArtworkScale,
-                                  height - 170, size.width * 0.3))
+            let base = min(size.height * 0.17, size.width * 0.16)
+            let art = max(90, min(base * settings.activeArtworkScale, height - 170, size.width * 0.3))
             let column = VStack(spacing: 18) {
                 artwork(side: art)
                 controls(width: max(art, 300))
@@ -189,7 +189,8 @@ struct LockWidgetView: View {
 
     private func lyricsView(alignment: LyricsAlignment) -> some View {
         LyricsView(lyrics: lyrics, player: player, overlay: overlay,
-                   alignment: alignment, wordByWord: settings.wordByWord, lead: settings.lyricsLead)
+                   alignment: alignment, wordByWord: settings.wordByWord, lead: settings.lyricsLead,
+                   textScale: settings.lyricsScale)
             .shadow(color: drawsBackground ? .clear : .black.opacity(0.45), radius: 10)
     }
 
