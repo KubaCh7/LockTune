@@ -1,10 +1,10 @@
 import Foundation
 
-/// Compiles and runs AppleScript source on the main thread, caching compiled scripts.
+/// Compiles and runs AppleScript source, caching compiled scripts.
 ///
-/// NSAppleScript is only safe to use from the main thread. The scripts we poll
-/// with are tiny (a few Apple Events) and wrapped in `with timeout`, so a hung
-/// player cannot freeze the UI for more than a moment.
+/// Not thread-safe: each runner is only ever used from NowPlayingController's
+/// single serial script queue (never the main thread, so a slow player can't
+/// stall the UI). Scripts are wrapped in `with timeout`.
 final class AppleScriptRunner {
     private var cache: [String: NSAppleScript] = [:]
     private(set) var lastErrorCode: Int?
@@ -14,8 +14,6 @@ final class AppleScriptRunner {
     /// Pass `cache: false` for one-off scripts (e.g. a seek with a literal value).
     @discardableResult
     func run(_ source: String, cache useCache: Bool = true) -> NSAppleEventDescriptor? {
-        assert(Thread.isMainThread, "NSAppleScript must be used on the main thread")
-
         let script: NSAppleScript
         if useCache, let cached = cache[source] {
             script = cached

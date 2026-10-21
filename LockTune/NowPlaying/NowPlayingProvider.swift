@@ -34,7 +34,8 @@ enum ArtworkSource {
 
 /// A source of "now playing" information and transport commands.
 ///
-/// Every method is called on the main thread. Implementations must never
+/// Every method is called on one serial background queue (never concurrently).
+/// Implementations must never
 /// launch the player app as a side effect (check `isRunning` first).
 protocol NowPlayingProvider: AnyObject {
     /// Stable identifier, used for the "preferred source" setting.

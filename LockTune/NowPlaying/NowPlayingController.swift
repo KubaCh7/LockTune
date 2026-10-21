@@ -108,6 +108,15 @@ final class NowPlayingController: ObservableObject {
     }
 
     // MARK: Polling
+    //
+    // All AppleScript runs on `scriptQueue` (one serial background queue), never
+    // on the main thread: a slow or busy player can't freeze the widget, and fast
+    // repeated clicks just queue up commands while the UI updates instantly.
+
+    /// One serial queue owns every provider/NSAppleScript call.
+    private let scriptQueue = DispatchQueue(label: "LockTune.AppleScript", qos: .userInitiated)
+    private var pollInFlight = false
+    private var pollAgain = false
 
     func refreshSoon(after delay: TimeInterval = 0.15) {
         Task { @MainActor [weak self] in
@@ -116,45 +125,101 @@ final class NowPlayingController: ObservableObject {
         }
     }
 
-    func poll() {
-        var best: (provider: NowPlayingProvider, snapshot: PlayerSnapshot, rank: Double)?
-        var denied = false
-
+    /// What one background poll found.
+    private struct PollResult {
         var report: [String: String] = [:]
-        for provider in providers {
-            guard settings.preferredSource.allows(provider.id) else {
-                report[provider.displayName] = "ignored (Music source setting)"
-                continue
-            }
-            guard provider.isRunning else {
-                report[provider.displayName] = provider.isInstalled ? "not running" : "not installed"
-                continue
-            }
-            let snapshot = provider.snapshot()
-            if provider.lastErrorCode == -1743 { denied = true }
-            if lastErrors[provider.displayName] != provider.lastErrorCode {
-                lastErrors[provider.displayName] = provider.lastErrorCode
-            }
-            if let snapshot {
-                report[provider.displayName] = "running · state: \(snapshot.state.rawValue) · position: "
-                    + String(format: "%.1f", snapshot.position) + " s · track: \(snapshot.trackID ?? "none")"
-            } else {
-                report[provider.displayName] = "running · script error \(provider.lastErrorCode.map { String($0) } ?? "?"): "
-                    + (provider.lastErrorMessage ?? "unknown")
-            }
-            guard let snapshot, snapshot.trackID != nil else { continue }
+        var errors: [String: Int?] = [:]
+        var denied = false
+        var best: (provider: NowPlayingProvider, snapshot: PlayerSnapshot)?
+        /// Filled when the track changed: its metadata and where to get artwork.
+        var newTrack: TrackInfo?
+        var artworkSource: ArtworkSource = .none
+        var trackError: String?
+    }
 
-            var rank: Double = snapshot.state == .playing ? 2 : 1
-            if provider === active { rank += 0.5 } // stickiness
-            if best == nil || rank > best!.rank {
-                best = (provider: provider, snapshot: snapshot, rank: rank)
+    func poll() {
+        // Coalesce: at most one poll in flight, plus one queued behind it.
+        guard !pollInFlight else {
+            pollAgain = true
+            return
+        }
+        pollInFlight = true
+
+        let providers = self.providers
+        let allowed = providers.map { settings.preferredSource.allows($0.id) }
+        let activeProvider = active
+        let currentTrackID = track?.id
+
+        scriptQueue.async { [weak self] in
+            var result = PollResult()
+            var bestRank = -1.0
+            for (provider, isAllowed) in zip(providers, allowed) {
+                let name = provider.displayName
+                guard isAllowed else {
+                    result.report[name] = "ignored (Music source setting)"
+                    continue
+                }
+                guard provider.isRunning else {
+                    result.report[name] = provider.isInstalled ? "not running" : "not installed"
+                    continue
+                }
+                let snapshot = provider.snapshot()
+                result.errors[name] = provider.lastErrorCode
+                if provider.lastErrorCode == -1743 { result.denied = true }
+                if let snapshot {
+                    result.report[name] = "running · state: \(snapshot.state.rawValue) · position: "
+                        + String(format: "%.1f", snapshot.position) + " s · track: \(snapshot.trackID ?? "none")"
+                } else {
+                    result.report[name] = "running · script error \(provider.lastErrorCode.map { String($0) } ?? "?"): "
+                        + (provider.lastErrorMessage ?? "unknown")
+                }
+                guard let snapshot, snapshot.trackID != nil else { continue }
+                var rank: Double = snapshot.state == .playing ? 2 : 1
+                if provider === activeProvider { rank += 0.5 } // stickiness
+                if rank > bestRank {
+                    bestRank = rank
+                    result.best = (provider, snapshot)
+                }
+            }
+
+            // New track (or new player): fetch metadata + artwork source here too.
+            if let best = result.best,
+               best.provider !== activeProvider || best.snapshot.trackID != currentTrackID {
+                if let info = best.provider.currentTrack() {
+                    result.newTrack = info
+                    result.artworkSource = best.provider.artwork(for: info)
+                } else {
+                    result.trackError = "track info error \(best.provider.lastErrorCode.map { String($0) } ?? "?"): "
+                        + (best.provider.lastErrorMessage ?? "unknown")
+                }
+            }
+
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.apply(result)
+                    self.pollInFlight = false
+                    if self.pollAgain {
+                        self.pollAgain = false
+                        self.poll()
+                    }
+                }
             }
         }
+    }
 
-        if automationDenied != denied { automationDenied = denied }
+    private func apply(_ result: PollResult) {
+        if automationDenied != result.denied { automationDenied = result.denied }
+        for (name, code) in result.errors where lastErrors[name] != code {
+            lastErrors[name] = code
+        }
+        var report = result.report
+        if let error = result.trackError, let name = result.best?.provider.displayName {
+            report[name, default: ""] += " · " + error
+        }
         if diagnostics != report { diagnostics = report }
 
-        guard let best else {
+        guard let best = result.best else {
             clear()
             return
         }
@@ -168,18 +233,16 @@ final class NowPlayingController: ObservableObject {
             sourceBundleID = provider.bundleIdentifier
         }
 
-        if providerChanged || snapshot.trackID != track?.id {
-            if let info = provider.currentTrack() {
-                track = info
-                state = snapshot.state
-                setPosition(snapshot.position)
-                ignoreStateUntil = .distantPast
-                loadArtwork(for: info, from: provider)
-            } else {
-                diagnostics[provider.displayName, default: ""] +=
-                    " · track info error \(provider.lastErrorCode.map { String($0) } ?? "?"): \(provider.lastErrorMessage ?? "unknown")"
-            }
+        if let info = result.newTrack {
+            if info != track { track = info }
+            state = snapshot.state
+            setPosition(snapshot.position)
+            ignoreStateUntil = .distantPast
+            loadArtwork(for: info, source: result.artworkSource)
             return
+        }
+        if providerChanged || snapshot.trackID != track?.id {
+            return // track info failed this time; try again on the next poll
         }
 
         guard Date() >= ignoreStateUntil else { return }
@@ -210,11 +273,8 @@ final class NowPlayingController: ObservableObject {
 
     // MARK: Artwork
 
-    private func loadArtwork(for info: TrackInfo, from provider: NowPlayingProvider) {
+    private func loadArtwork(for info: TrackInfo, source: ArtworkSource) {
         artworkTask?.cancel()
-        // AppleScript must run on the main thread, so resolve the source here.
-        let source = provider.artwork(for: info)
-
         artworkTask = Task { @MainActor [weak self] in
             var image: NSImage?
             switch source {
@@ -241,20 +301,28 @@ final class NowPlayingController: ObservableObject {
     }
 
     // MARK: Commands
+    //
+    // The UI reacts immediately (optimistic state); the Apple Event is sent in
+    // the background, so rapid clicks never block the widget.
+
+    private func send(_ command: @escaping (NowPlayingProvider) -> Void) {
+        guard let provider = active else { return }
+        scriptQueue.async { command(provider) }
+    }
 
     func playPause() {
-        guard let active else { return }
+        guard active != nil else { return }
         let current = position()
-        active.playPause()
         state = isPlaying ? .paused : .playing
         setPosition(current)
-        ignoreStateUntil = Date().addingTimeInterval(0.8)
-        refreshSoon(after: 0.9)
+        ignoreStateUntil = Date().addingTimeInterval(1.0)
+        send { $0.playPause() }
+        refreshSoon(after: 1.1)
     }
 
     func next() {
-        active?.nextTrack()
-        refreshSoon()
+        send { $0.nextTrack() }
+        refreshSoon(after: 0.35)
     }
 
     /// iPhone behaviour: restart the song if more than 3 s in, otherwise go back.
@@ -262,17 +330,17 @@ final class NowPlayingController: ObservableObject {
         if position() > 3 {
             seek(to: 0)
         } else {
-            active?.previousTrack()
-            refreshSoon()
+            send { $0.previousTrack() }
+            refreshSoon(after: 0.35)
         }
     }
 
     func seek(to target: TimeInterval) {
-        guard let active else { return }
+        guard active != nil else { return }
         let clamped = duration > 0 ? min(max(0, target), duration - 0.5) : max(0, target)
-        active.seek(to: clamped)
         setPosition(clamped)
-        ignoreStateUntil = Date().addingTimeInterval(0.6)
+        ignoreStateUntil = Date().addingTimeInterval(0.8)
+        send { $0.seek(to: clamped) }
     }
 
     /// Shows the macOS "LockTune wants to control …" prompt for every running
