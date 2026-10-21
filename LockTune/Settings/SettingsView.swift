@@ -7,18 +7,91 @@ struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var player: NowPlayingController
 
-    var body: some View {
-        TabView {
-            StatusTab(coordinator: coordinator, settings: settings, player: player)
-                .tabItem { Label("Status", systemImage: "checkmark.circle") }
-            GeneralSettings(coordinator: coordinator, settings: settings)
-                .tabItem { Label("General", systemImage: "gearshape") }
-            AppearanceSettings(coordinator: coordinator, settings: settings)
-                .tabItem { Label("Appearance", systemImage: "paintpalette") }
+    enum Tab: String, CaseIterable, Identifiable {
+        case status = "Status", general = "General", appearance = "Appearance"
+        var id: String { rawValue }
+        var icon: String {
+            switch self {
+            case .status: return "checkmark.circle"
+            case .general: return "gearshape"
+            case .appearance: return "paintpalette"
+            }
         }
-        .padding(.top, 8)
-        .frame(width: 560, height: 560)
     }
+
+    @State private var tab: Tab = .status
+    @Namespace private var tabNamespace
+
+    var body: some View {
+        ZStack {
+            // See-through, blurred window + a glow tinted by the current artwork.
+            WindowBlur()
+            LinearGradient(colors: [player.palette.primary.color.opacity(0.45),
+                                    player.palette.secondary.color.opacity(0.25),
+                                    player.palette.tertiary.color.opacity(0.35)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+                .animation(.easeInOut(duration: 1), value: player.palette)
+
+            VStack(spacing: 0) {
+                tabBar
+                    .padding(.top, 34) // room for the traffic lights
+                    .padding(.bottom, 6)
+                Group {
+                    switch tab {
+                    case .status: StatusTab(coordinator: coordinator, settings: settings, player: player)
+                    case .general: GeneralSettings(coordinator: coordinator, settings: settings)
+                    case .appearance: AppearanceSettings(coordinator: coordinator, settings: settings)
+                    }
+                }
+                .hiddenScrollBackground()
+                .transition(.opacity)
+            }
+        }
+        .environment(\.glassLevel, .normal)
+        .frame(width: 580, height: 640)
+        .preferredColorScheme(.dark)
+    }
+
+    /// Glass pill tab bar.
+    private var tabBar: some View {
+        HStack(spacing: 4) {
+            ForEach(Tab.allCases) { item in
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = item }
+                } label: {
+                    Label(item.rawValue, systemImage: item.icon)
+                        .font(.system(size: 13, weight: .semibold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        .background {
+                            if tab == item {
+                                Capsule()
+                                    .fill(.white.opacity(0.18))
+                                    .overlay(Capsule().strokeBorder(.white.opacity(0.35), lineWidth: 0.8))
+                                    .matchedGeometryEffect(id: "tab", in: tabNamespace)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(PressableButtonStyle())
+            }
+        }
+        .padding(4)
+        .glassBackground(Capsule())
+    }
+}
+
+/// Behind-window blur for a transparent settings window.
+private struct WindowBlur: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .hudWindow
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }
 
 // MARK: - Status

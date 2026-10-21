@@ -42,6 +42,15 @@ extension View {
         }
     }
 
+    /// Lets the window's glass show through forms/lists (macOS 13+).
+    @ViewBuilder func hiddenScrollBackground() -> some View {
+        if #available(macOS 13.0, *) {
+            scrollContentBackground(.hidden)
+        } else {
+            self
+        }
+    }
+
     /// Grouped settings look (macOS 13+); plain form before that.
     @ViewBuilder func groupedFormStyle() -> some View {
         if #available(macOS 13.0, *) {

@@ -120,11 +120,19 @@ final class SettingsWindowController {
             let root = SettingsView(coordinator: coordinator,
                                     settings: coordinator.settings,
                                     player: coordinator.nowPlaying)
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 560),
-                                  styleMask: [.titled, .closable, .miniaturizable],
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 580, height: 640),
+                                  styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
                                   backing: .buffered, defer: false)
             window.title = "LockTune"
             window.isReleasedWhenClosed = false
+            // Glass window: transparent title bar, see-through background
+            // (the SwiftUI view draws a behind-window blur + artwork tint).
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            window.isMovableByWindowBackground = true
+            window.appearance = NSAppearance(named: .darkAqua)
             window.contentView = NSHostingView(rootView: root)
             window.center()
             self.window = window
