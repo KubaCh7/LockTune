@@ -86,13 +86,11 @@ private struct SyncedLyricsView: View {
     var body: some View {
         // `player` is observed, so a seek while paused (which bumps
         // `timelineRevision`) re-renders this even though the timeline is paused.
-        // This tick only decides *which* line is current; the stack itself is
-        // Equatable, so it re-renders only when that (or scrolling) changes.
-        // The per-word fill of the current line runs in its own small timeline.
         TimelineView(.animation(minimumInterval: frameInterval, paused: !player.isPlaying)) { context in
             let time = player.position(at: context.date) + lead
             LyricsStack(lines: lines,
                         activeIndex: LRCParser.activeIndex(in: lines, at: time),
+                        time: time,
                         revision: revision,
                         scrollOffset: overlay.lyricsScrollOffset,
                         isBrowsing: overlay.isBrowsingLyrics,
@@ -100,9 +98,7 @@ private struct SyncedLyricsView: View {
                         alignment: alignment,
                         wordByWord: wordByWord,
                         textScale: textScale,
-                        clock: { [player, lead] date in player.position(at: date) + lead },
                         onSeek: { player.seek(to: $0) })
-                .equatable()
         }
     }
 }
@@ -116,9 +112,10 @@ private struct LineHeightKey: PreferenceKey {
 
 /// Lays lines out manually so each one can spring to its new position with a
 /// small per-line delay — the signature Apple Music "wave" effect.
-private struct LyricsStack: View, Equatable {
+private struct LyricsStack: View {
     let lines: [LyricLine]
     let activeIndex: Int
+    let time: TimeInterval
     let revision: Int
     let scrollOffset: CGFloat
     let isBrowsing: Bool
@@ -126,19 +123,7 @@ private struct LyricsStack: View, Equatable {
     let alignment: LyricsAlignment
     let wordByWord: Bool
     let textScale: CGFloat
-    /// Lyrics time at a given date (for the current line's word fill).
-    let clock: (Date) -> TimeInterval
     let onSeek: (TimeInterval) -> Void
-
-    /// Lines further than this from the current one aren't drawn at all
-    /// (they're off screen) — keeps animations smooth on long songs.
-    private static let renderWindow = 12
-
-    static func == (a: LyricsStack, b: LyricsStack) -> Bool {
-        a.revision == b.revision && a.lines.count == b.lines.count && a.activeIndex == b.activeIndex
-            && a.scrollOffset == b.scrollOffset && a.isBrowsing == b.isBrowsing && a.isPlaying == b.isPlaying
-            && a.alignment == b.alignment && a.wordByWord == b.wordByWord && a.textScale == b.textScale
-    }
 
     @State private var heights: [Int: CGFloat] = [:]
     @State private var revealed = false
@@ -156,10 +141,8 @@ private struct LyricsStack: View, Equatable {
             // Manual scrolling, clamped between the first and the last line.
             let scroll = min(max(scrollOffset, focusTop - (tops.last ?? 0)), focusTop)
 
-            let visible = lines.filter { isBrowsing || abs($0.id - focus) <= Self.renderWindow }
-
             ZStack(alignment: .topLeading) {
-                ForEach(visible) { line in
+                ForEach(lines) { line in
                     let index = line.id
                     let distance = activeIndex < 0 ? index + 1 : abs(index - activeIndex)
                     let isActive = index == activeIndex
@@ -172,7 +155,7 @@ private struct LyricsStack: View, Equatable {
                                   fontSize: fontSize,
                                   isHovered: hovered == index,
                                   alignment: alignment,
-                                  clock: isActive && wordByWord ? clock : nil)
+                                  progress: isActive && wordByWord ? line.wordProgress(at: time) : nil)
                         .frame(width: geo.size.width, alignment: alignment.frame)
                         .background(GeometryReader { proxy in
                             Color.clear.preference(key: LineHeightKey.self, value: [index: proxy.size.height])
@@ -183,8 +166,7 @@ private struct LyricsStack: View, Equatable {
                         .offset(y: revealed ? y : y + 36)
                         .animation(.spring(response: 0.65, dampingFraction: 0.84).delay(stagger(index, focus: focus)),
                                    value: activeIndex)
-                        .animation(.spring(response: 0.7, dampingFraction: 0.85)
-                                    .delay(Double(min(abs(index - focus), 12)) * 0.035),
+                        .animation(.spring(response: 0.7, dampingFraction: 0.85).delay(Double(min(index, 14)) * 0.035),
                                    value: revealed)
                         .onHover { inside in
                             if inside { hovered = index } else if hovered == index { hovered = nil }
@@ -252,24 +234,22 @@ private struct LyricLineView: View {
     let fontSize: CGFloat
     let isHovered: Bool
     let alignment: LyricsAlignment
-    /// Set only on the current line with word-by-word on: drives the word fill.
-    let clock: ((Date) -> TimeInterval)?
+    /// Per-word progress (0…1) for the word-by-word highlight; nil = whole line lit.
+    let progress: [Double]?
     @Environment(\.lyricsFont) private var lyricsFont
     @Environment(\.lyricsWeight) private var lyricsWeight
-    @Environment(\.frameInterval) private var frameInterval
 
     var body: some View {
         Group {
             if line.isInstrumental {
                 InstrumentalDots(isActive: isActive && isPlaying, dotSize: fontSize * 0.32)
                     .frame(height: fontSize * 1.1, alignment: alignment.frame)
-            } else if let clock {
-                // Only this one line updates every frame.
-                TimelineView(.animation(minimumInterval: frameInterval, paused: !isPlaying)) { context in
-                    styled(text(progress: line.wordProgress(at: clock(context.date))))
-                }
             } else {
-                styled(Text(line.text))
+                lineText
+                    .font(lyricsFont.font(size: fontSize, weight: lyricsWeight.fontWeight))
+                    .lineSpacing(fontSize * 0.08)
+                    .multilineTextAlignment(alignment.text)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.vertical, 6)
@@ -282,18 +262,10 @@ private struct LyricLineView: View {
         .contentShape(Rectangle())
     }
 
-    private func styled(_ text: Text) -> some View {
-        text
-            .font(lyricsFont.font(size: fontSize, weight: lyricsWeight.fontWeight))
-            .lineSpacing(fontSize * 0.08)
-            .multilineTextAlignment(alignment.text)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
     /// Words already sung are fully lit, the current one fills in, the rest
     /// stay dim — like Apple Music's word-by-word lyrics.
-    private func text(progress: [Double]) -> Text {
-        guard progress.count == line.words.count else {
+    private var lineText: Text {
+        guard let progress, progress.count == line.words.count else {
             return Text(line.text)
         }
         if #available(macOS 14.0, *) {
