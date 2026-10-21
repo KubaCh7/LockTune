@@ -821,14 +821,14 @@ private struct LyricsSettings: View {
             Section("Timing") {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Lyrics timing: \(String(format: "%.1f", settings.lyricsLead)) s ahead")
-                    Slider(value: $settings.lyricsLead, in: 0...1.5, step: 0.1) {
+                    Slider(value: $settings.lyricsLead, in: AppSettings.lyricsLeadRange, step: 0.1) {
                         EmptyView()
                     } minimumValueLabel: {
                         Text("On time").font(.caption)
                     } maximumValueLabel: {
                         Text("Earlier").font(.caption)
                     }
-                    Text("If lyrics feel late, move this towards Earlier.")
+                    Text("Middle (1.5 s) is the default. If lyrics feel late, move right towards Earlier; if they run ahead, move left.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Button("Clear Lyrics Cache") { coordinator.lyrics.clearCache() }

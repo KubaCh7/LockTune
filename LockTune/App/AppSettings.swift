@@ -277,6 +277,8 @@ final class AppSettings: ObservableObject {
     var activeArtworkScale: Double { lockWallpaper ? artworkScale : plainArtworkScale }
     /// How many seconds early lyrics are highlighted (0 … 1.5).
     @Published var lyricsLead: Double { didSet { defaults.set(lyricsLead, forKey: Key.lyricsLead) } }
+    /// 0 = exactly on time, 3 s = very early; 1.5 s (middle) is the default.
+    static let lyricsLeadRange: ClosedRange<Double> = 0...3
     @Published var lyricsEnabled: Bool { didSet { defaults.set(lyricsEnabled, forKey: Key.lyricsEnabled) } }
     @Published var preferredSource: PreferredSource { didSet { defaults.set(preferredSource.rawValue, forKey: Key.preferredSource) } }
     @Published var allDisplays: Bool { didSet { defaults.set(allDisplays, forKey: Key.allDisplays) } }
@@ -302,7 +304,8 @@ final class AppSettings: ObservableObject {
             Key.awakeDurationIndex: 9,
             Key.wordByWord: true,
             Key.artworkScale: 2.5,
-            Key.lyricsLead: 0.6,
+            // Middle of the 0–3 s slider (the old maximum).
+            Key.lyricsLead: 1.5,
             Key.allDisplays: true,
         ])
 
@@ -350,7 +353,7 @@ final class AppSettings: ObservableObject {
         lyricsScale = min(max(defaults.double(forKey: Key.lyricsScale), 0.6), 1.4)
         let fps = defaults.integer(forKey: Key.animationFPS)
         animationFPS = Self.fpsOptions.contains(fps) ? fps : 60
-        lyricsLead = min(max(defaults.double(forKey: Key.lyricsLead), 0), 1.5)
+        lyricsLead = defaults.double(forKey: Key.lyricsLead).clamped(to: Self.lyricsLeadRange)
         lyricsEnabled = defaults.bool(forKey: Key.lyricsEnabled)
         preferredSource = defaults.string(forKey: Key.preferredSource).flatMap(PreferredSource.init(rawValue:)) ?? .automatic
         allDisplays = defaults.bool(forKey: Key.allDisplays)
@@ -443,7 +446,7 @@ extension AppSettings {
         if let v = p.lyricsEnabled { lyricsEnabled = v }
         if let v = p.lyricsPosition.flatMap(LyricsPosition.init(rawValue:)) { lyricsPosition = v }
         if let v = p.lyricsScale { lyricsScale = clamp(v, 0.6, 1.4) }
-        if let v = p.lyricsLead { lyricsLead = clamp(v, 0, 1.5) }
+        if let v = p.lyricsLead { lyricsLead = v.clamped(to: Self.lyricsLeadRange) }
         if let v = p.wordByWord { wordByWord = v }
         if let v = p.clockFont.flatMap(ClockFontStyle.init(rawValue:)) { clockFont = v }
         if let v = p.clockWeight.flatMap(ClockWeight.init(rawValue:)) { clockWeight = v }
