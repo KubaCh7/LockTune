@@ -187,7 +187,7 @@ private struct GlassPicker: View {
         switch settings.glassLevel {
         case .off: return "Classic frosted blur."
         case .normal: return "Glass player card and toolbar." + (real ? "" : " (Imitation — real Liquid Glass needs macOS 26+.)")
-        case .mega: return "Glass everywhere: player card, every button, a glass frame around the artwork and a glass panel behind the lyrics."
+        case .mega: return "⚠️ Experimental — doesn't work very well yet and can look off, especially without the artwork wallpaper. Glass everywhere: player card, every button, a frame around the artwork and a panel behind the lyrics."
             + (real ? "" : " (Imitation — real Liquid Glass needs macOS 26+.)")
         }
     }

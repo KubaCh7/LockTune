@@ -8,7 +8,8 @@ enum GlassLevel: String, CaseIterable, Identifiable {
     /// Liquid Glass on the player card and toolbar.
     case normal
     /// Glass everywhere: player card, every button, a glass frame around the
-    /// artwork and a glass panel behind the lyrics.
+    /// artwork and a glass panel behind the lyrics. Experimental — it doesn't
+    /// look right in every situation yet (e.g. over the normal lock screen).
     case mega
 
     var id: String { rawValue }
@@ -16,7 +17,7 @@ enum GlassLevel: String, CaseIterable, Identifiable {
         switch self {
         case .off: return "Off"
         case .normal: return "Liquid Glass"
-        case .mega: return "Mega Liquid Glass"
+        case .mega: return "Mega (Experimental)"
         }
     }
 }
