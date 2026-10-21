@@ -106,59 +106,84 @@ struct SettingsView: View {
     }
 
     /// Glass pill tab bar, like the iOS 26 tab bar: tap a tab, or press and
-    /// drag the glass highlight across the tabs and let go on the one you want.
+    /// drag — a liquid-glass droplet pops out, magnifies the tabs under it,
+    /// stretches with your speed, and drops into the tab you release on.
     private static let tabWidth: CGFloat = 96
+    private static let barHeight: CGFloat = 32
     @State private var dragX: CGFloat?
+    @State private var stretch: CGFloat = 0
+    @State private var lastSample: (x: CGFloat, time: Date)?
+
+    private func tabLabels(_ tabs: [Tab], lit: Int?) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(tabs.enumerated()), id: \.element) { index, item in
+                Label(item.rawValue, systemImage: item.icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                    .frame(width: Self.tabWidth, height: Self.barHeight)
+                    .opacity(lit == index ? 1 : 0.65)
+            }
+        }
+    }
 
     private var tabBar: some View {
         let tabs = Tab.allCases
         let width = Self.tabWidth
-        let maxX = width * CGFloat(tabs.count - 1)
-        let selectedX = width * CGFloat(tabs.firstIndex(of: tab) ?? 0)
-        let highlightX = dragX.map { min(max($0 - width / 2, 0), maxX) } ?? selectedX
+        let total = width * CGFloat(tabs.count)
+        let selectedIndex = tabs.firstIndex(of: tab) ?? 0
         let hoverIndex = dragX.map { min(max(Int($0 / width), 0), tabs.count - 1) }
+        // Droplet centre, kept inside the bar.
+        let center = dragX.map { min(max($0, width / 2), total - width / 2) }
 
         return ZStack(alignment: .leading) {
-            // The moving glass "lens".
+            // Resting highlight under the selected tab.
             Capsule()
-                .fill(.white.opacity(dragX == nil ? 0.18 : 0.26))
-                .overlay(Capsule().strokeBorder(.white.opacity(dragX == nil ? 0.35 : 0.55), lineWidth: 0.8))
-                .shadow(color: .black.opacity(dragX == nil ? 0 : 0.25), radius: 8, y: 3)
-                .frame(width: width, height: 32)
-                .scaleEffect(dragX == nil ? 1 : 1.1)
-                .offset(x: highlightX)
-                .animation(dragX == nil ? .spring(response: 0.38, dampingFraction: 0.78)
-                                        : .interactiveSpring(response: 0.16, dampingFraction: 0.86),
-                           value: highlightX)
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragX == nil)
+                .fill(.white.opacity(0.18))
+                .overlay(Capsule().strokeBorder(.white.opacity(0.35), lineWidth: 0.8))
+                .frame(width: width, height: Self.barHeight)
+                .offset(x: width * CGFloat(selectedIndex))
+                .opacity(dragX == nil ? 1 : 0)
+                .animation(.spring(response: 0.42, dampingFraction: 0.72), value: selectedIndex)
+                .animation(.easeOut(duration: 0.15), value: dragX == nil)
 
-            HStack(spacing: 0) {
-                ForEach(Array(tabs.enumerated()), id: \.element) { index, item in
-                    let lit = (hoverIndex ?? tabs.firstIndex(of: tab)) == index
-                    Label(item.rawValue, systemImage: item.icon)
-                        .font(.system(size: 12, weight: .semibold))
-                        .lineLimit(1)
-                        .frame(width: width, height: 32)
-                        .opacity(lit ? 1 : 0.65)
-                        .animation(.easeOut(duration: 0.15), value: lit)
-                }
+            tabLabels(tabs, lit: hoverIndex ?? selectedIndex)
+                .animation(.easeOut(duration: 0.15), value: hoverIndex)
+
+            if let center {
+                droplet(center: center, total: total, tabs: tabs, lit: hoverIndex)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
             }
-            .allowsHitTesting(false)
         }
+        .frame(width: total, height: Self.barHeight)
         .padding(4)
         .contentShape(Capsule())
         .glassBackground(Capsule())
+        .animation(.spring(response: 0.32, dampingFraction: 0.62), value: dragX == nil)
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
-                    // Taps don't show the lens; real drags do.
-                    if dragX != nil || abs(value.translation.width) > 3 {
-                        dragX = value.location.x - 4
+                    let x = value.location.x - 4
+                    // Taps don't pop the droplet; real drags do.
+                    guard dragX != nil || abs(value.translation.width) > 3 else { return }
+                    let now = Date()
+                    if let last = lastSample {
+                        let dt = max(now.timeIntervalSince(last.time), 1.0 / 240)
+                        let speed = abs(x - last.x) / CGFloat(dt)
+                        // Smoothed 0…1 stretch from the drag speed.
+                        stretch = stretch * 0.6 + min(speed / 1400, 1) * 0.4
+                    }
+                    lastSample = (x, now)
+                    withAnimation(.interactiveSpring(response: 0.18, dampingFraction: 0.82)) {
+                        dragX = x
                     }
                 }
                 .onEnded { value in
                     let index = min(max(Int((value.location.x - 4) / width), 0), tabs.count - 1)
-                    dragX = nil
+                    lastSample = nil
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.7)) {
+                        stretch = 0
+                        dragX = nil
+                    }
                     select(tabs[index])
                 }
         )
@@ -173,6 +198,47 @@ struct SettingsView: View {
             .opacity(0)
             .allowsHitTesting(false)
         )
+    }
+
+    /// The water-drop lens: taller than the bar, magnifies the labels under
+    /// it, real Liquid Glass on macOS 26+, squashes & stretches with speed.
+    private func droplet(center: CGFloat, total: CGFloat, tabs: [Tab], lit: Int?) -> some View {
+        let lensWidth = Self.tabWidth * 1.12
+        let lensHeight = Self.barHeight * 1.45
+        let magnification: CGFloat = 1.28
+        let shape = Capsule()
+
+        return tabLabels(tabs, lit: lit)
+            // Magnify around the droplet centre, then line that point up with
+            // the middle of the lens.
+            .frame(width: total, height: Self.barHeight)
+            .scaleEffect(magnification, anchor: UnitPoint(x: center / total, y: 0.5))
+            .offset(x: lensWidth / 2 - center)
+            .frame(width: lensWidth, height: lensHeight, alignment: .leading)
+            .clipShape(shape)
+            .background(shape.fill(.white.opacity(0.10)))
+            .modifier(DropletGlass(shape: shape, lite: settings.liteMode))
+            .overlay(
+                shape.strokeBorder(
+                    LinearGradient(colors: [.white.opacity(0.85), .white.opacity(0.15), .white.opacity(0.5)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: 1.2)
+            )
+            .overlay(
+                // Specular highlight near the top, like light on a drop.
+                Capsule()
+                    .fill(LinearGradient(colors: [.white.opacity(0.45), .clear],
+                                         startPoint: .top, endPoint: .bottom))
+                    .frame(width: lensWidth * 0.62, height: lensHeight * 0.28)
+                    .offset(y: -lensHeight * 0.24)
+                    .blur(radius: 1.5)
+                    .allowsHitTesting(false)
+            )
+            .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
+            // Squash & stretch with speed.
+            .scaleEffect(x: 1 + stretch * 0.28, y: 1 - stretch * 0.14)
+            .offset(x: center - lensWidth / 2)
+            .allowsHitTesting(false)
     }
 }
 
@@ -856,4 +922,29 @@ final class TabSwipeMonitor: ObservableObject {
     }
 
     deinit { stop() }
+}
+
+
+/// Real Liquid Glass for the tab droplet on macOS 26+ (refracts what's under
+/// it); a light frosted look elsewhere or in Lite mode.
+private struct DropletGlass<S: InsettableShape>: ViewModifier {
+    let shape: S
+    let lite: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if lite {
+            content
+        } else {
+            #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                content.glassEffect(.clear.interactive(), in: shape)
+            } else {
+                content.background(shape.fill(.ultraThinMaterial))
+            }
+            #else
+            content.background(shape.fill(.ultraThinMaterial))
+            #endif
+        }
+    }
 }
