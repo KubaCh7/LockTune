@@ -45,13 +45,19 @@ extension View {
 /// (material + specular gradients) on older systems.
 struct GlassBackground<S: InsettableShape>: ViewModifier {
     @Environment(\.glassLevel) private var level
+    @Environment(\.liteMode) private var lite
     let shape: S
     var onlyInMega = false
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if onlyInMega && level != .mega {
+        if onlyInMega && (level != .mega || lite) {
             content
+        } else if lite {
+            // No blur at all: a flat translucent fill is nearly free to draw.
+            content
+                .background(shape.fill(Color.black.opacity(0.42)))
+                .overlay(shape.strokeBorder(.white.opacity(0.14), lineWidth: 0.5))
         } else if level == .off {
             content
                 .background(.ultraThinMaterial, in: shape)

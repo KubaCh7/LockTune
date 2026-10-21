@@ -35,6 +35,7 @@ struct LockWidgetView: View {
         .environment(\.colorScheme, isLightBackground ? .light : .dark)
         .environment(\.frameInterval, settings.frameInterval)
         .environment(\.glassLevel, settings.glassLevel)
+        .environment(\.liteMode, settings.liteMode)
         .environment(\.lyricsFont, settings.lyricsFont)
         .environment(\.lyricsWeight, settings.lyricsWeight)
         .focusEffectDisabledCompat()
@@ -46,8 +47,8 @@ struct LockWidgetView: View {
                 background(size: size)
                     // Entrance: the artwork wallpaper zooms in out of a blur.
                     .opacity(shown ? 1 : 0)
-                    .scaleEffect(shown ? 1 : 1.12)
-                    .blur(radius: shown ? 0 : 40)
+                    .scaleEffect(shown || settings.liteMode ? 1 : 1.12)
+                    .blur(radius: shown || settings.liteMode ? 0 : 40)
                     .animation(.easeOut(duration: shown ? 0.55 : 0.3), value: shown)
             }
 
@@ -224,7 +225,7 @@ struct LockWidgetView: View {
     private func lyricsView(alignment: LyricsAlignment) -> some View {
         let mega = settings.glassLevel == .mega
         return LyricsView(lyrics: lyrics, player: player, overlay: overlay,
-                   alignment: alignment, wordByWord: settings.wordByWord, lead: settings.lyricsLead,
+                   alignment: alignment, wordByWord: settings.effectiveWordByWord, lead: settings.lyricsLead,
                    textScale: settings.lyricsScale)
             .shadow(color: drawsBackground || mega ? .clear : .black.opacity(0.45), radius: 10)
             // Mega Liquid Glass: lyrics float on a big glass panel.

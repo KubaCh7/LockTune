@@ -80,7 +80,7 @@ final class NowPlayingController: ObservableObject {
 
     /// 4 Hz while the overlay is visible, every 2 s otherwise.
     func setHighFrequency(_ high: Bool) {
-        pollInterval = high ? 0.25 : 2
+        pollInterval = high ? (settings.liteMode ? 0.5 : 0.25) : 2
         timer?.invalidate()
         let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.poll() }

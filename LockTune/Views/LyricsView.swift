@@ -125,6 +125,7 @@ private struct LyricsStack: View {
     let textScale: CGFloat
     let onSeek: (TimeInterval) -> Void
 
+    @Environment(\.liteMode) private var lite
     @State private var heights: [Int: CGFloat] = [:]
     @State private var revealed = false
     @State private var hovered: Int?
@@ -164,9 +165,11 @@ private struct LyricsStack: View {
                         .opacity(revealed ? opacity(distance: distance, isActive: isActive) : 0)
                         .blur(radius: blur(distance: distance))
                         .offset(y: revealed ? y : y + 36)
-                        .animation(.spring(response: 0.65, dampingFraction: 0.84).delay(stagger(index, focus: focus)),
+                        .animation(lite ? .easeInOut(duration: 0.35)
+                                        : .spring(response: 0.65, dampingFraction: 0.84).delay(stagger(index, focus: focus)),
                                    value: activeIndex)
-                        .animation(.spring(response: 0.7, dampingFraction: 0.85).delay(Double(min(index, 14)) * 0.035),
+                        .animation(lite ? .easeOut(duration: 0.3)
+                                        : .spring(response: 0.7, dampingFraction: 0.85).delay(Double(min(index, 14)) * 0.035),
                                    value: revealed)
                         .onHover { inside in
                             if inside { hovered = index } else if hovered == index { hovered = nil }
@@ -216,7 +219,7 @@ private struct LyricsStack: View {
     }
 
     private func blur(distance: Int) -> CGFloat {
-        guard !isBrowsing, distance > 1, distance <= 10 else { return 0 }
+        guard !lite, !isBrowsing, distance > 1, distance <= 10 else { return 0 }
         return min(CGFloat(distance - 1) * 0.6, 2.5)
     }
 

@@ -3,6 +3,7 @@ import SwiftUI
 
 /// Rounded album art with a soft shadow that shrinks when paused (Apple Music style).
 struct ArtworkView: View {
+    @Environment(\.liteMode) private var lite
     let image: NSImage?
     let token: Int
     let isPlaying: Bool
@@ -28,8 +29,8 @@ struct ArtworkView: View {
             .clipShape(shape)
             .overlay(shape.strokeBorder(.white.opacity(0.1), lineWidth: 0.5))
             .shadow(color: .black.opacity(isPlaying ? 0.42 : 0.25),
-                    radius: side * (isPlaying ? 0.09 : 0.05),
-                    y: side * (isPlaying ? 0.05 : 0.025))
+                    radius: lite ? 8 : side * (isPlaying ? 0.09 : 0.05),
+                    y: lite ? 4 : side * (isPlaying ? 0.05 : 0.025))
             .scaleEffect(isPlaying ? 1 : 0.84)
             .animation(.spring(response: 0.55, dampingFraction: 0.66), value: isPlaying)
             .animation(.easeInOut(duration: 0.6), value: token)

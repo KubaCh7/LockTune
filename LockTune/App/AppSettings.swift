@@ -172,6 +172,7 @@ final class AppSettings: ObservableObject {
         static let glassLevel = "glassLevel"
         static let lyricsOffset = "lyricsOffset"
         static let lyricsFont = "lyricsFont"
+        static let liteMode = "liteMode"
         static let lyricsWeight = "lyricsWeight"
         static let plainLyricsOffset = "plainLyricsOffset"
         static let layoutVersion = "layoutVersion"
@@ -223,10 +224,15 @@ final class AppSettings: ObservableObject {
     @Published var plainBottomInset: Double { didSet { defaults.set(plainBottomInset, forKey: Key.plainBottomInset) } }
     @Published var plainArtworkScale: Double { didSet { defaults.set(plainArtworkScale, forKey: Key.plainArtworkScale) } }
 
+    /// Lite mode for slow Macs: everything still works, the heavy effects are off.
+    @Published var liteMode: Bool { didSet { defaults.set(liteMode, forKey: Key.liteMode) } }
+
     /// 30, 60 or 120 frames per second for the continuous animations.
     @Published var animationFPS: Int { didSet { defaults.set(animationFPS, forKey: Key.animationFPS) } }
     static let fpsOptions = [30, 60, 120]
-    var frameInterval: Double { 1.0 / Double(max(animationFPS, 1)) }
+    var frameInterval: Double { liteMode ? 1.0 / 30 : 1.0 / Double(max(animationFPS, 1)) }
+    /// Word-by-word needs a redraw every frame; Lite mode lights whole lines.
+    var effectiveWordByWord: Bool { wordByWord && !liteMode }
 
     /// How much Liquid Glass the widget uses.
     @Published var glassLevel: GlassLevel { didSet { defaults.set(glassLevel.rawValue, forKey: Key.glassLevel) } }
@@ -328,6 +334,7 @@ final class AppSettings: ObservableObject {
         plainArtworkScale = min(max(defaults.double(forKey: Key.plainArtworkScale), 0.6), Self.maxArtworkScale)
         lyricsOffset = defaults.double(forKey: Key.lyricsOffset).clamped(to: Self.wallpaperLyricsRange)
         plainLyricsOffset = defaults.double(forKey: Key.plainLyricsOffset).clamped(to: Self.plainLyricsRange)
+        liteMode = defaults.bool(forKey: Key.liteMode)
         lyricsFont = defaults.string(forKey: Key.lyricsFont).flatMap(FontChoice.init(rawValue:)) ?? .sfPro
         lyricsWeight = defaults.string(forKey: Key.lyricsWeight).flatMap(ClockWeight.init(rawValue:)) ?? .bold
         glassLevel = defaults.string(forKey: Key.glassLevel).flatMap(GlassLevel.init(rawValue:)) ?? .normal

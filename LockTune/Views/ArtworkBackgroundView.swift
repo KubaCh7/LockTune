@@ -4,6 +4,7 @@ import SwiftUI
 /// Full-screen background built from the artwork: either a blurred, saturated,
 /// slowly drifting version (Apple Music style) or the artwork as a wallpaper.
 struct ArtworkBackgroundView: View {
+    @Environment(\.liteMode) private var lite
     let artwork: NSImage?
     let blurred: NSImage?
     let palette: ArtworkPalette
@@ -26,7 +27,17 @@ struct ArtworkBackgroundView: View {
                             .frame(width: geo.size.width, height: geo.size.height)
                             .clipped()
                     } else if let blurred {
-                        DriftingArtwork(image: blurred, size: geo.size)
+                        if lite {
+                            // Static: the pre-blurred image, no animation.
+                            Image(nsImage: blurred)
+                                .resizable()
+                                .interpolation(.medium)
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .clipped()
+                        } else {
+                            DriftingArtwork(image: blurred, size: geo.size)
+                        }
                     }
                 }
                 .id("\(token)-\(style.rawValue)")

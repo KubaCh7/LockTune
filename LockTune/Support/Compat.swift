@@ -4,6 +4,19 @@ import SwiftUI
 // Small wrappers so LockTune runs on macOS 12+ while using newer APIs
 // where they exist.
 
+/// Lite mode for slow Macs (e.g. 12" MacBook): no blur, no moving
+/// background, fewer frames — set at the widget / settings root.
+private struct LiteModeKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var liteMode: Bool {
+        get { self[LiteModeKey.self] }
+        set { self[LiteModeKey.self] = newValue }
+    }
+}
+
 extension NSApplication {
     /// `activate()` is macOS 14+; older systems use `activate(ignoringOtherApps:)`.
     func activateCompat() {

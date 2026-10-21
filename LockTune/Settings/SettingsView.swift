@@ -40,7 +40,11 @@ struct SettingsView: View {
     var body: some View {
         ZStack {
             // See-through, blurred window + a glow tinted by the current artwork.
-            WindowBlur()
+            if settings.liteMode {
+                Color(white: 0.12)
+            } else {
+                WindowBlur()
+            }
             LinearGradient(colors: [player.palette.primary.color.opacity(0.45),
                                     player.palette.secondary.color.opacity(0.25),
                                     player.palette.tertiary.color.opacity(0.35)],
@@ -70,6 +74,7 @@ struct SettingsView: View {
             }
         }
         .environment(\.glassLevel, .normal)
+        .environment(\.liteMode, settings.liteMode)
         .frame(width: 580, height: 640)
         .preferredColorScheme(.dark)
         .onAppear {
@@ -210,6 +215,8 @@ private struct StatusTab: View {
 
             Section("Look") {
                 GlassPicker(settings: settings)
+                    .disabled(settings.liteMode)
+                LiteModeToggle(settings: settings)
             }
 
             Section("Checklist") {
@@ -331,6 +338,19 @@ private struct LyricsHighlightPicker: View {
     }
 }
 
+/// Lite mode switch, shown on the Status and General tabs.
+private struct LiteModeToggle: View {
+    @ObservedObject var settings: AppSettings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle("Lite mode (for older / slower Macs)", isOn: $settings.liteMode)
+            Text("Everything keeps working, but heavy effects are switched off: no moving background, no blur or glass, no word-by-word highlight, 30 fps and slower polling. Made for e.g. the 12\" MacBook (A1534).")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
 /// Liquid Glass picker, shown on both the Status and the General tab.
 private struct GlassPicker: View {
     @ObservedObject var settings: AppSettings
@@ -411,6 +431,8 @@ private struct GeneralSettings: View {
 
             Section("Look") {
                 GlassPicker(settings: settings)
+                    .disabled(settings.liteMode)
+                LiteModeToggle(settings: settings)
             }
 
             Section("Lyrics") {
