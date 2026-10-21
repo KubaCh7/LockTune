@@ -23,6 +23,19 @@ struct SettingsView: View {
 
     @State private var tab: Tab = .status
     @Namespace private var tabNamespace
+    @StateObject private var swipe = TabSwipeMonitor()
+
+    private func select(_ newTab: Tab) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = newTab }
+    }
+
+    /// Next/previous tab for a trackpad swipe (wraps around).
+    private func step(_ delta: Int) {
+        let all = Tab.allCases
+        let index = all.firstIndex(of: tab) ?? 0
+        let next = min(max(index + delta, 0), all.count - 1)
+        if next != index { select(all[next]) }
+    }
 
     var body: some View {
         ZStack {
@@ -54,14 +67,19 @@ struct SettingsView: View {
         .environment(\.glassLevel, .normal)
         .frame(width: 580, height: 640)
         .preferredColorScheme(.dark)
+        .onAppear {
+            swipe.onSwipe = { step($0) }
+            swipe.start()
+        }
+        .onDisappear { swipe.stop() }
     }
 
     /// Glass pill tab bar.
     private var tabBar: some View {
         HStack(spacing: 4) {
-            ForEach(Tab.allCases) { item in
+            ForEach(Array(Tab.allCases.enumerated()), id: \.element) { index, item in
                 Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = item }
+                    select(item)
                 } label: {
                     Label(item.rawValue, systemImage: item.icon)
                         .font(.system(size: 12, weight: .semibold))
@@ -78,6 +96,9 @@ struct SettingsView: View {
                         .contentShape(Capsule())
                 }
                 .buttonStyle(PressableButtonStyle())
+                // ⌘1 … ⌘5
+                .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
+                .help("\(item.rawValue) (⌘\(index + 1))")
             }
         }
         .padding(4)
@@ -701,4 +722,51 @@ enum PresetFiles {
         alert.alertStyle = style
         alert.runModal()
     }
+}
+
+
+/// Two-finger horizontal trackpad swipe in the settings window → change tab.
+final class TabSwipeMonitor: ObservableObject {
+    /// -1 = previous tab, +1 = next tab.
+    var onSwipe: ((Int) -> Void)?
+    private var monitor: Any?
+    private var accumulated: CGFloat = 0
+    private var fired = false
+
+    func start() {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            self?.handle(event)
+            return event
+        }
+    }
+
+    func stop() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+    }
+
+    private func handle(_ event: NSEvent) {
+        guard event.window?.identifier?.rawValue == "LockTuneSettings",
+              event.hasPreciseScrollingDeltas, event.momentumPhase.isEmpty else { return }
+        if event.phase.contains(.began) {
+            accumulated = 0
+            fired = false
+        }
+        // Only clearly horizontal movement, so scrolling a list doesn't flip tabs.
+        if abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY) * 1.5 {
+            accumulated += event.scrollingDeltaX
+        }
+        if !fired, abs(accumulated) > 70 {
+            fired = true
+            // Fingers moving left (content moves left) = next tab, like pages.
+            onSwipe?(accumulated < 0 ? 1 : -1)
+        }
+        if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+            accumulated = 0
+            fired = false
+        }
+    }
+
+    deinit { stop() }
 }

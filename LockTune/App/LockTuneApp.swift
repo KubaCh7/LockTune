@@ -131,7 +131,8 @@ final class SettingsWindowController {
             window.titleVisibility = .hidden
             window.isOpaque = false
             window.backgroundColor = .clear
-            window.isMovableByWindowBackground = true
+            // Not movable by background: that swallowed clicks on the tab bar.
+            window.identifier = NSUserInterfaceItemIdentifier("LockTuneSettings")
             window.appearance = NSAppearance(named: .darkAqua)
             window.contentView = NSHostingView(rootView: root)
             window.center()
