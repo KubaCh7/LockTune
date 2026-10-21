@@ -97,6 +97,11 @@ enum SelfTest {
             report(nil, "Panel attached to the lock-screen layer", "no screen on this machine")
         }
 
+        // Fonts: every non-system choice should exist on a stock Mac (falls back to SF Pro if not).
+        let families = Set(NSFontManager.shared.availableFontFamilies)
+        let missingFonts = FontChoice.allCases.compactMap { $0.family }.filter { !families.contains($0) }
+        print("INFO  font families missing: \(missingFonts.isEmpty ? "none" : missingFonts.joined(separator: ", "))")
+
         // 5. Lock state can be read.
         print("INFO  session locked: \(LockMonitor.sessionIsLocked)")
 

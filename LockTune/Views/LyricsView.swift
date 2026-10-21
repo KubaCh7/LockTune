@@ -1,6 +1,25 @@
 import AppKit
 import SwiftUI
 
+private struct LyricsFontKey: EnvironmentKey {
+    static let defaultValue: FontChoice = .sfPro
+}
+
+private struct LyricsWeightKey: EnvironmentKey {
+    static let defaultValue: ClockWeight = .bold
+}
+
+extension EnvironmentValues {
+    var lyricsFont: FontChoice {
+        get { self[LyricsFontKey.self] }
+        set { self[LyricsFontKey.self] = newValue }
+    }
+    var lyricsWeight: ClockWeight {
+        get { self[LyricsWeightKey.self] }
+        set { self[LyricsWeightKey.self] = newValue }
+    }
+}
+
 enum LyricsAlignment {
     case leading, center
 
@@ -217,6 +236,8 @@ private struct LyricLineView: View {
     let alignment: LyricsAlignment
     /// Per-word progress (0…1) for the word-by-word highlight; nil = whole line lit.
     let progress: [Double]?
+    @Environment(\.lyricsFont) private var lyricsFont
+    @Environment(\.lyricsWeight) private var lyricsWeight
 
     var body: some View {
         Group {
@@ -225,7 +246,7 @@ private struct LyricLineView: View {
                     .frame(height: fontSize * 1.1, alignment: alignment.frame)
             } else {
                 lineText
-                    .font(.system(size: fontSize, weight: .bold))
+                    .font(lyricsFont.font(size: fontSize, weight: lyricsWeight.fontWeight))
                     .lineSpacing(fontSize * 0.08)
                     .multilineTextAlignment(alignment.text)
                     .fixedSize(horizontal: false, vertical: true)
@@ -286,6 +307,8 @@ struct InstrumentalDots: View {
 private struct PlainLyricsView: View {
     let lines: [String]
     let alignment: LyricsAlignment
+    @Environment(\.lyricsFont) private var lyricsFont
+    @Environment(\.lyricsWeight) private var lyricsWeight
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -297,7 +320,7 @@ private struct PlainLyricsView: View {
                     .padding(.bottom, 8)
                 ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                     Text(line.isEmpty ? " " : line)
-                        .font(.system(size: 26, weight: .bold))
+                        .font(lyricsFont.font(size: 26, weight: lyricsWeight.fontWeight))
                         .opacity(0.85)
                         .multilineTextAlignment(alignment.text)
                         .fixedSize(horizontal: false, vertical: true)

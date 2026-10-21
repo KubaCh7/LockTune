@@ -8,13 +8,15 @@ struct SettingsView: View {
     @ObservedObject var player: NowPlayingController
 
     enum Tab: String, CaseIterable, Identifiable {
-        case status = "Status", general = "General", appearance = "Appearance"
+        case status = "Status", general = "General", look = "Look", layout = "Layout", lyrics = "Lyrics"
         var id: String { rawValue }
         var icon: String {
             switch self {
             case .status: return "checkmark.circle"
             case .general: return "gearshape"
-            case .appearance: return "paintpalette"
+            case .look: return "paintpalette"
+            case .layout: return "rectangle.3.offgrid"
+            case .lyrics: return "quote.bubble"
             }
         }
     }
@@ -40,7 +42,9 @@ struct SettingsView: View {
                     switch tab {
                     case .status: StatusTab(coordinator: coordinator, settings: settings, player: player)
                     case .general: GeneralSettings(coordinator: coordinator, settings: settings)
-                    case .appearance: AppearanceSettings(coordinator: coordinator, settings: settings)
+                    case .look: LookSettings(settings: settings)
+                    case .layout: LayoutSettings(settings: settings)
+                    case .lyrics: LyricsSettings(coordinator: coordinator, settings: settings)
                     }
                 }
                 .hiddenScrollBackground()
@@ -60,8 +64,8 @@ struct SettingsView: View {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab = item }
                 } label: {
                     Label(item.rawValue, systemImage: item.icon)
-                        .font(.system(size: 13, weight: .semibold))
-                        .padding(.horizontal, 14)
+                        .font(.system(size: 12, weight: .semibold))
+                        .padding(.horizontal, 10)
                         .padding(.vertical, 7)
                         .background {
                             if tab == item {
@@ -407,8 +411,62 @@ private struct GeneralSettings: View {
 
 // MARK: - Appearance
 
-private struct AppearanceSettings: View {
-    @ObservedObject var coordinator: AppCoordinator
+// MARK: - Look
+
+private struct LookSettings: View {
+    @ObservedObject var settings: AppSettings
+
+    var body: some View {
+        Form {
+            Section("Background") {
+                Toggle("Artwork wallpaper behind the widget", isOn: $settings.lockWallpaper)
+                Picker("Wallpaper style", selection: $settings.backgroundStyle) {
+                    ForEach(BackgroundStyle.allCases) { Text($0.title).tag($0) }
+                }
+                .disabled(!settings.lockWallpaper)
+                Text("On: the screen is filled with the artwork. Off: only the album art, controls and lyrics float over your normal lock screen.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section("Liquid Glass") {
+                GlassPicker(settings: settings)
+            }
+
+            Section("Clock (wallpaper mode & preview)") {
+                FontPickers(font: $settings.clockFont, weight: $settings.clockWeight)
+                HStack {
+                    Spacer()
+                    ClockView(size: 56, style: settings.clockFont, weight: settings.clockWeight)
+                    Spacer()
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section("Animation") {
+                Picker("Smoothness", selection: $settings.animationFPS) {
+                    ForEach(AppSettings.fpsOptions, id: \.self) { Text("\($0) fps").tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Text("Frame rate of the moving background, lyrics and progress bar. 120 fps needs a ProMotion display.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section("Presets") {
+                HStack {
+                    Button("Export Preset…") { PresetFiles.export(settings) }
+                    Button("Import Preset…") { PresetFiles.importFile(into: settings) }
+                }
+                Text("Save your whole look (layout, sizes, fonts, lyrics, glass, clock) to a file you can share, or load someone else's.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .groupedFormStyle()
+    }
+}
+
+// MARK: - Layout
+
+private struct LayoutSettings: View {
     @ObservedObject var settings: AppSettings
 
     /// Knob position along the slider, 0–100 % (50 % = default).
@@ -481,29 +539,14 @@ private struct AppearanceSettings: View {
 
     var body: some View {
         Form {
-            Section("Presets") {
-                HStack {
-                    Button("Export Preset…") { PresetFiles.export(settings) }
-                    Button("Import Preset…") { PresetFiles.importFile(into: settings) }
-                }
-                Text("Save your whole look (layout, sizes, lyrics, glass, clock) to a file you can share, or load someone else's preset.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-
-            Section("Widget") {
-                Toggle("Artwork wallpaper behind the widget", isOn: $settings.lockWallpaper)
-                Picker("Wallpaper style", selection: $settings.backgroundStyle) {
-                    ForEach(BackgroundStyle.allCases) { Text($0.title).tag($0) }
-                }
-                .disabled(!settings.lockWallpaper)
-                Text("On: the screen is filled with the artwork, like in the reference video. Off: only the album art, controls and lyrics float over your normal lock screen. Each mode keeps its own height and artwork size below.")
+            Section {
+                Text("Each mode has its own sliders. Left = less / lower, right = more / higher; 50 % is the default.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
             Section {
                 heightSlider(Binding(get: { 1 - settings.widgetBottomInset },
                                      set: { settings.widgetBottomInset = 1 - $0 }),
-                             // Centred on the old lowest point (72 %), so it can go lower still.
                              range: AppSettings.playerBottomRange)
                 sizeSlider($settings.artworkScale)
                 lyricsOffsetSlider($settings.lyricsOffset, range: AppSettings.wallpaperLyricsRange)
@@ -520,19 +563,10 @@ private struct AppearanceSettings: View {
                       systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange)
                 lyricsOffsetSlider($settings.plainLyricsOffset, range: AppSettings.plainLyricsRange)
-                Text("Every slider: left = less / lower, right = more / higher. Below 50 % the player can reach your name and “Touch ID or Enter Password”.")
+                Text("Below 50 % the player can reach your name and “Touch ID or Enter Password”.")
                     .font(.caption).foregroundStyle(.secondary)
             } header: {
                 modeHeader("Without wallpaper (normal lock screen)", inUse: !settings.lockWallpaper)
-            }
-
-            Section("Animation") {
-                Picker("Smoothness", selection: $settings.animationFPS) {
-                    ForEach(AppSettings.fpsOptions, id: \.self) { Text("\($0) fps").tag($0) }
-                }
-                .pickerStyle(.segmented)
-                Text("Frame rate of the moving background, lyrics and progress bar. 120 fps needs a ProMotion display; higher uses a bit more battery.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section {
@@ -546,26 +580,39 @@ private struct AppearanceSettings: View {
                     settings.plainLyricsOffset = 0.10
                 }
             }
+        }
+        .groupedFormStyle()
+    }
+}
 
-            Section("Clock (wallpaper mode & preview)") {
-                Picker("Font", selection: $settings.clockFont) {
-                    ForEach(ClockFontStyle.allCases) { Text($0.title).tag($0) }
+// MARK: - Lyrics
+
+private struct LyricsSettings: View {
+    @ObservedObject var coordinator: AppCoordinator
+    @ObservedObject var settings: AppSettings
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Load lyrics from LRCLIB", isOn: $settings.lyricsEnabled)
+                Picker("Where", selection: $settings.lyricsPosition) {
+                    ForEach(LyricsPosition.allCases) { Text($0.title).tag($0) }
                 }
-                Picker("Weight", selection: $settings.clockWeight) {
-                    ForEach(ClockWeight.allCases) { Text($0.title).tag($0) }
-                }
-                HStack {
-                    Spacer()
-                    ClockView(size: 56, style: settings.clockFont, weight: settings.clockWeight)
-                    Spacer()
-                }
-                .padding(.vertical, 4)
+                LyricsHighlightPicker(settings: settings)
             }
 
-            Section("Lyrics") {
-                Toggle("Load lyrics from LRCLIB", isOn: $settings.lyricsEnabled)
+            Section("Font") {
+                FontPickers(font: $settings.lyricsFont, weight: $settings.lyricsWeight)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Here is the place")
+                        .font(settings.lyricsFont.font(size: 26, weight: settings.lyricsWeight.fontWeight))
+                    Text("Come together in the dream")
+                        .font(settings.lyricsFont.font(size: 20, weight: settings.lyricsWeight.fontWeight))
+                        .opacity(0.45)
+                }
+                .padding(.vertical, 4)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Lyrics text size: \(Int((settings.lyricsScale * 100).rounded())) %")
+                    Text("Text size: \(Int((settings.lyricsScale * 100).rounded())) %")
                     Slider(value: $settings.lyricsScale, in: 0.6...1.4, step: 0.05) {
                         EmptyView()
                     } minimumValueLabel: {
@@ -576,10 +623,9 @@ private struct AppearanceSettings: View {
                     Text("Smaller text shows more lines at once.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Picker("Lyrics position", selection: $settings.lyricsPosition) {
-                    ForEach(LyricsPosition.allCases) { Text($0.title).tag($0) }
-                }
-                LyricsHighlightPicker(settings: settings)
+            }
+
+            Section("Timing") {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Lyrics timing: \(String(format: "%.1f", settings.lyricsLead)) s ahead")
                     Slider(value: $settings.lyricsLead, in: 0...1.5, step: 0.1) {
@@ -589,13 +635,28 @@ private struct AppearanceSettings: View {
                     } maximumValueLabel: {
                         Text("Earlier").font(.caption)
                     }
-                    Text("If lyrics feel late, move this towards Earlier. Word timing is estimated when the lyrics only have line times.")
+                    Text("If lyrics feel late, move this towards Earlier.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Button("Clear Lyrics Cache") { coordinator.lyrics.clearCache() }
             }
         }
         .groupedFormStyle()
+    }
+}
+
+/// Font + weight pickers shared by the clock and the lyrics.
+private struct FontPickers: View {
+    @Binding var font: FontChoice
+    @Binding var weight: ClockWeight
+
+    var body: some View {
+        Picker("Font", selection: $font) {
+            ForEach(FontChoice.allCases) { Text($0.title).tag($0) }
+        }
+        Picker("Weight", selection: $weight) {
+            ForEach(ClockWeight.allCases) { Text($0.title).tag($0) }
+        }
     }
 }
 

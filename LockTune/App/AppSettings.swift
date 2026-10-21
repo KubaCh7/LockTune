@@ -1,25 +1,78 @@
+import AppKit
 import SwiftUI
 
-enum ClockFontStyle: String, CaseIterable, Identifiable {
-    case newYork, rounded, sfPro
+/// Fonts for the clock and the lyrics: the system designs plus a set of
+/// typefaces that ship with every Mac.
+enum FontChoice: String, CaseIterable, Identifiable {
+    case sfPro, rounded, newYork, mono
+    case helveticaNeue, avenirNext, futura, gillSans, optima
+    case didot, baskerville, georgia, bodoni
+    case americanTypewriter, chalkboard, markerFelt
+
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .newYork: return "New York (serif)"
-        case .rounded: return "SF Pro Rounded"
         case .sfPro: return "SF Pro"
+        case .rounded: return "SF Pro Rounded"
+        case .newYork: return "New York (serif)"
+        case .mono: return "SF Mono"
+        case .helveticaNeue: return "Helvetica Neue"
+        case .avenirNext: return "Avenir Next"
+        case .futura: return "Futura"
+        case .gillSans: return "Gill Sans"
+        case .optima: return "Optima"
+        case .didot: return "Didot"
+        case .baskerville: return "Baskerville"
+        case .georgia: return "Georgia"
+        case .bodoni: return "Bodoni 72"
+        case .americanTypewriter: return "American Typewriter"
+        case .chalkboard: return "Chalkboard"
+        case .markerFelt: return "Marker Felt"
+        }
+    }
+
+    /// Font family for the non-system choices.
+    var family: String? {
+        switch self {
+        case .sfPro, .rounded, .newYork, .mono: return nil
+        case .helveticaNeue: return "Helvetica Neue"
+        case .avenirNext: return "Avenir Next"
+        case .futura: return "Futura"
+        case .gillSans: return "Gill Sans"
+        case .optima: return "Optima"
+        case .didot: return "Didot"
+        case .baskerville: return "Baskerville"
+        case .georgia: return "Georgia"
+        case .bodoni: return "Bodoni 72"
+        case .americanTypewriter: return "American Typewriter"
+        case .chalkboard: return "Chalkboard SE"
+        case .markerFelt: return "Marker Felt"
         }
     }
 
     var design: Font.Design {
         switch self {
-        case .newYork: return .serif
         case .rounded: return .rounded
-        case .sfPro: return .default
+        case .newYork: return .serif
+        case .mono: return .monospaced
+        default: return .default
         }
     }
+
+    private static let installedFamilies = Set(NSFontManager.shared.availableFontFamilies)
+
+    /// The font at `size`/`weight`; falls back to SF Pro if a family is missing.
+    func font(size: CGFloat, weight: Font.Weight) -> Font {
+        if let family, Self.installedFamilies.contains(family) {
+            return Font.custom(family, size: size).weight(weight)
+        }
+        return .system(size: size, weight: weight, design: design)
+    }
 }
+
+/// Kept so existing code and saved settings ("newYork", "rounded", "sfPro") still work.
+typealias ClockFontStyle = FontChoice
 
 enum ClockWeight: String, CaseIterable, Identifiable {
     case ultraLight, thin, light, regular, medium, semibold, bold
@@ -118,6 +171,8 @@ final class AppSettings: ObservableObject {
         static let lyricsScale = "lyricsScale"
         static let glassLevel = "glassLevel"
         static let lyricsOffset = "lyricsOffset"
+        static let lyricsFont = "lyricsFont"
+        static let lyricsWeight = "lyricsWeight"
         static let plainLyricsOffset = "plainLyricsOffset"
         static let layoutVersion = "layoutVersion"
         static let lyricsLead = "lyricsLead"
@@ -186,6 +241,10 @@ final class AppSettings: ObservableObject {
     /// Bottom edge of artwork + controls, as a fraction of the screen height.
     static let playerBottomRange: ClosedRange<Double> = 0.48...0.96
     var activeLyricsOffset: Double { lockWallpaper ? lyricsOffset : plainLyricsOffset }
+
+    /// Typeface and weight of the lyrics.
+    @Published var lyricsFont: FontChoice { didSet { defaults.set(lyricsFont.rawValue, forKey: Key.lyricsFont) } }
+    @Published var lyricsWeight: ClockWeight { didSet { defaults.set(lyricsWeight.rawValue, forKey: Key.lyricsWeight) } }
 
     /// Lyrics text size multiplier (0.6 … 1.4).
     @Published var lyricsScale: Double { didSet { defaults.set(lyricsScale, forKey: Key.lyricsScale) } }
@@ -269,6 +328,8 @@ final class AppSettings: ObservableObject {
         plainArtworkScale = min(max(defaults.double(forKey: Key.plainArtworkScale), 0.6), Self.maxArtworkScale)
         lyricsOffset = defaults.double(forKey: Key.lyricsOffset).clamped(to: Self.wallpaperLyricsRange)
         plainLyricsOffset = defaults.double(forKey: Key.plainLyricsOffset).clamped(to: Self.plainLyricsRange)
+        lyricsFont = defaults.string(forKey: Key.lyricsFont).flatMap(FontChoice.init(rawValue:)) ?? .sfPro
+        lyricsWeight = defaults.string(forKey: Key.lyricsWeight).flatMap(ClockWeight.init(rawValue:)) ?? .bold
         glassLevel = defaults.string(forKey: Key.glassLevel).flatMap(GlassLevel.init(rawValue:)) ?? .normal
         lyricsScale = min(max(defaults.double(forKey: Key.lyricsScale), 0.6), 1.4)
         let fps = defaults.integer(forKey: Key.animationFPS)
@@ -305,6 +366,8 @@ struct LockTunePreset: Codable {
     var wordByWord: Bool?
     var clockFont: String?
     var clockWeight: String?
+    var lyricsFont: String?
+    var lyricsWeight: String?
     var glassLevel: String?
     var animationFPS: Int?
     var awakeDurationIndex: Int?
@@ -329,6 +392,8 @@ extension AppSettings {
         p.wordByWord = wordByWord
         p.clockFont = clockFont.rawValue
         p.clockWeight = clockWeight.rawValue
+        p.lyricsFont = lyricsFont.rawValue
+        p.lyricsWeight = lyricsWeight.rawValue
         p.glassLevel = glassLevel.rawValue
         p.animationFPS = animationFPS
         p.awakeDurationIndex = awakeDurationIndex
@@ -366,6 +431,8 @@ extension AppSettings {
         if let v = p.wordByWord { wordByWord = v }
         if let v = p.clockFont.flatMap(ClockFontStyle.init(rawValue:)) { clockFont = v }
         if let v = p.clockWeight.flatMap(ClockWeight.init(rawValue:)) { clockWeight = v }
+        if let v = p.lyricsFont.flatMap(FontChoice.init(rawValue:)) { lyricsFont = v }
+        if let v = p.lyricsWeight.flatMap(ClockWeight.init(rawValue:)) { lyricsWeight = v }
         if let v = p.glassLevel.flatMap(GlassLevel.init(rawValue:)) { glassLevel = v }
         if let v = p.animationFPS, Self.fpsOptions.contains(v) { animationFPS = v }
         if let v = p.awakeDurationIndex { awakeDurationIndex = min(max(v, 0), Self.awakeDurations.count - 1) }

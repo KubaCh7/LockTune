@@ -12,10 +12,10 @@ struct ClockView: View {
             let time = Self.timeString(context.date)
             VStack(spacing: -size * 0.04) {
                 Text(Self.dateString(context.date))
-                    .font(.system(size: size * 0.15, weight: .semibold, design: style.design))
+                    .font(style.font(size: size * 0.15, weight: .semibold))
                     .opacity(0.92)
                 Text(time)
-                    .font(.system(size: size, weight: weight.fontWeight, design: style.design))
+                    .font(style.font(size: size, weight: weight.fontWeight))
                     .numericTextTransition()
                     .animation(.easeInOut(duration: 0.5), value: time)
             }

@@ -35,6 +35,8 @@ struct LockWidgetView: View {
         .environment(\.colorScheme, isLightBackground ? .light : .dark)
         .environment(\.frameInterval, settings.frameInterval)
         .environment(\.glassLevel, settings.glassLevel)
+        .environment(\.lyricsFont, settings.lyricsFont)
+        .environment(\.lyricsWeight, settings.lyricsWeight)
         .focusEffectDisabledCompat()
     }
 
