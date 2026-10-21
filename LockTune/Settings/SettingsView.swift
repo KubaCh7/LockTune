@@ -100,35 +100,74 @@ struct SettingsView: View {
         )
     }
 
-    /// Glass pill tab bar.
+    /// Glass pill tab bar, like the iOS 26 tab bar: tap a tab, or press and
+    /// drag the glass highlight across the tabs and let go on the one you want.
+    private static let tabWidth: CGFloat = 96
+    @State private var dragX: CGFloat?
+
     private var tabBar: some View {
-        HStack(spacing: 4) {
-            ForEach(Array(Tab.allCases.enumerated()), id: \.element) { index, item in
-                Button {
-                    select(item)
-                } label: {
+        let tabs = Tab.allCases
+        let width = Self.tabWidth
+        let maxX = width * CGFloat(tabs.count - 1)
+        let selectedX = width * CGFloat(tabs.firstIndex(of: tab) ?? 0)
+        let highlightX = dragX.map { min(max($0 - width / 2, 0), maxX) } ?? selectedX
+        let hoverIndex = dragX.map { min(max(Int($0 / width), 0), tabs.count - 1) }
+
+        return ZStack(alignment: .leading) {
+            // The moving glass "lens".
+            Capsule()
+                .fill(.white.opacity(dragX == nil ? 0.18 : 0.26))
+                .overlay(Capsule().strokeBorder(.white.opacity(dragX == nil ? 0.35 : 0.55), lineWidth: 0.8))
+                .shadow(color: .black.opacity(dragX == nil ? 0 : 0.25), radius: 8, y: 3)
+                .frame(width: width, height: 32)
+                .scaleEffect(dragX == nil ? 1 : 1.1)
+                .offset(x: highlightX)
+                .animation(dragX == nil ? .spring(response: 0.38, dampingFraction: 0.78)
+                                        : .interactiveSpring(response: 0.16, dampingFraction: 0.86),
+                           value: highlightX)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragX == nil)
+
+            HStack(spacing: 0) {
+                ForEach(Array(tabs.enumerated()), id: \.element) { index, item in
+                    let lit = (hoverIndex ?? tabs.firstIndex(of: tab)) == index
                     Label(item.rawValue, systemImage: item.icon)
                         .font(.system(size: 12, weight: .semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .background {
-                            if tab == item {
-                                Capsule()
-                                    .fill(.white.opacity(0.18))
-                                    .overlay(Capsule().strokeBorder(.white.opacity(0.35), lineWidth: 0.8))
-                                    .matchedGeometryEffect(id: "tab", in: tabNamespace)
-                            }
-                        }
-                        .contentShape(Capsule())
+                        .lineLimit(1)
+                        .frame(width: width, height: 32)
+                        .opacity(lit ? 1 : 0.65)
+                        .animation(.easeOut(duration: 0.15), value: lit)
                 }
-                .buttonStyle(PressableButtonStyle())
-                // ⌘1 … ⌘5
-                .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
-                .help("\(item.rawValue) (⌘\(index + 1))")
             }
+            .allowsHitTesting(false)
         }
         .padding(4)
+        .contentShape(Capsule())
         .glassBackground(Capsule())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    // Taps don't show the lens; real drags do.
+                    if dragX != nil || abs(value.translation.width) > 3 {
+                        dragX = value.location.x - 4
+                    }
+                }
+                .onEnded { value in
+                    let index = min(max(Int((value.location.x - 4) / width), 0), tabs.count - 1)
+                    dragX = nil
+                    select(tabs[index])
+                }
+        )
+        .background(
+            // ⌘1 … ⌘5
+            HStack {
+                ForEach(Array(tabs.enumerated()), id: \.element) { index, item in
+                    Button("") { select(item) }
+                        .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
+                }
+            }
+            .opacity(0)
+            .allowsHitTesting(false)
+        )
     }
 }
 
