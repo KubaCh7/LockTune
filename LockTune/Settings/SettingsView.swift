@@ -48,9 +48,14 @@ struct SettingsView: View {
                 .animation(.easeInOut(duration: 1), value: player.palette)
 
             VStack(spacing: 0) {
-                tabBar
-                    .padding(.top, 34) // room for the traffic lights
-                    .padding(.bottom, 6)
+                ZStack(alignment: .trailing) {
+                    tabBar
+                        .frame(maxWidth: .infinity)
+                    closeButton
+                        .padding(.trailing, 14)
+                }
+                .padding(.top, 12)
+                .padding(.bottom, 6)
                 Group {
                     switch tab {
                     case .status: StatusTab(coordinator: coordinator, settings: settings, player: player)
@@ -72,6 +77,27 @@ struct SettingsView: View {
             swipe.start()
         }
         .onDisappear { swipe.stop() }
+    }
+
+    /// Closes the window (also ⌘W and Esc).
+    private var closeButton: some View {
+        Button {
+            SettingsWindowController.shared.close()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 11, weight: .bold))
+                .frame(width: 26, height: 26)
+                .glassBackground(Circle())
+        }
+        .buttonStyle(PressableButtonStyle())
+        .keyboardShortcut("w", modifiers: .command)
+        .help("Close (⌘W)")
+        .background(
+            // Esc closes too.
+            Button("") { SettingsWindowController.shared.close() }
+                .keyboardShortcut(.cancelAction)
+                .opacity(0)
+        )
     }
 
     /// Glass pill tab bar.

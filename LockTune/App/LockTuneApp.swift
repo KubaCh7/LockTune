@@ -121,14 +121,12 @@ final class SettingsWindowController {
                                     settings: coordinator.settings,
                                     player: coordinator.nowPlaying)
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 580, height: 640),
-                                  styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+                                  styleMask: [.titled, .closable, .miniaturizable],
                                   backing: .buffered, defer: false)
-            window.title = "LockTune"
+            window.title = "LockTune Settings"
             window.isReleasedWhenClosed = false
-            // Glass window: transparent title bar, see-through background
-            // (the SwiftUI view draws a behind-window blur + artwork tint).
-            window.titlebarAppearsTransparent = true
-            window.titleVisibility = .hidden
+            // Normal title bar (with the close button); the content below is
+            // see-through glass (behind-window blur + artwork tint).
             window.isOpaque = false
             window.backgroundColor = .clear
             // Not movable by background: that swallowed clicks on the tab bar.
@@ -140,5 +138,9 @@ final class SettingsWindowController {
         }
         NSApp.activateCompat()
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    func close() {
+        window?.performClose(nil)
     }
 }
