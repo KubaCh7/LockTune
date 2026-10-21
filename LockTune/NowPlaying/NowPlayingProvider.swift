@@ -23,6 +23,9 @@ struct PlayerSnapshot: Equatable {
     var position: TimeInterval
     /// Identifier of the current track, `nil` when there is none.
     var trackID: String?
+    /// When `position` was true (middle of the Apple Event round trip), so
+    /// interpolation isn't thrown off by how long the query took to come back.
+    var capturedAt = Date()
 }
 
 /// Where a provider can get the artwork for a track.

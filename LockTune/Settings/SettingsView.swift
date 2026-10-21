@@ -831,7 +831,12 @@ private struct LyricsSettings: View {
                     Text("Middle (1.5 s) is the default. If lyrics feel late, move right towards Earlier; if they run ahead, move left.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Button("Clear Lyrics Cache") { coordinator.lyrics.clearCache() }
+                HStack {
+                    Button("Clear Lyrics Cache") { coordinator.lyrics.clearCache() }
+                    Button("Reset Per-Song Sync") { coordinator.lyrics.resetAllSongOffsets() }
+                }
+                Text("On the lock screen, with lyrics on, the − / + buttons on the left shift the current song's lyrics by 0.25 s; that correction is remembered for that song.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .groupedFormStyle()

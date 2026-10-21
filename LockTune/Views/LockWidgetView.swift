@@ -225,7 +225,7 @@ struct LockWidgetView: View {
     private func lyricsView(alignment: LyricsAlignment) -> some View {
         let mega = settings.glassLevel == .mega
         return LyricsView(lyrics: lyrics, player: player, overlay: overlay,
-                   alignment: alignment, wordByWord: settings.effectiveWordByWord, lead: settings.lyricsLead,
+                   alignment: alignment, wordByWord: settings.effectiveWordByWord, lead: settings.lyricsLead + lyrics.songOffset,
                    textScale: settings.lyricsScale)
             .shadow(color: drawsBackground || mega ? .clear : .black.opacity(0.45), radius: 10)
             // Mega Liquid Glass: lyrics float on a big glass panel.
@@ -266,6 +266,23 @@ struct LockWidgetView: View {
             .disabled(!player.hasTrack)
 
             if showsLyrics {
+                // Per-song sync: − = lyrics later, + = lyrics earlier.
+                ToolbarButton(systemName: "minus", isOn: false, help: "Lyrics later (this song)") {
+                    lyrics.nudge(-LyricsController.offsetStep)
+                }
+                .transition(.scale.combined(with: .opacity))
+                if abs(lyrics.songOffset) > 0.001 {
+                    Text(String(format: "%+.2f s", lyrics.songOffset))
+                        .font(.system(size: 10, weight: .bold, design: .rounded).monospacedDigit())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .glassBackground(Capsule())
+                        .transition(.opacity)
+                }
+                ToolbarButton(systemName: "plus", isOn: false, help: "Lyrics earlier (this song)") {
+                    lyrics.nudge(LyricsController.offsetStep)
+                }
+                .transition(.scale.combined(with: .opacity))
                 ToolbarButton(systemName: lyricsPositionIcon, isOn: false,
                               help: "Lyrics position: \(settings.lyricsPosition.title)") {
                     cycleLyricsPosition()

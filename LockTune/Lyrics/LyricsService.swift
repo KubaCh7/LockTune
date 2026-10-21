@@ -72,34 +72,41 @@ actor LyricsService {
             return exactRecord
         }
 
-        // 2. Fuzzy search with a cleaned-up title, pick the closest duration.
-        var search = URLComponents(string: "https://lrclib.net/api/search")!
-        search.queryItems = [
+        // 2. Search (structured, then free text), and pick the synced version
+        //    whose length matches the song best — a different edit (longer
+        //    intro, radio edit…) is the usual reason lyrics run out of sync.
+        var results: [LRCLibRecord] = []
+        var structured = URLComponents(string: "https://lrclib.net/api/search")!
+        structured.queryItems = [
             URLQueryItem(name: "track_name", value: Self.cleanTitle(track.title)),
             URLQueryItem(name: "artist_name", value: Self.primaryArtist(track.artist)),
         ]
-        guard let results: [LRCLibRecord] = try await get(search.url!), !results.isEmpty else {
-            return exactRecord.flatMap { Self.content(from: $0) != nil ? $0 : nil }
-        }
+        if let found: [LRCLibRecord] = try await get(structured.url!) { results += found }
 
         func durationDelta(_ r: LRCLibRecord) -> Double {
             guard track.duration > 0, let d = r.duration else { return 0 }
             return abs(d - track.duration)
         }
-        let plausible = results.filter { durationDelta($0) <= 5 }
-        let pool = plausible.isEmpty ? results : plausible
-        let best = pool.min { a, b in
-            let aSynced = (a.syncedLyrics?.isEmpty == false) ? 0 : 1
-            let bSynced = (b.syncedLyrics?.isEmpty == false) ? 0 : 1
-            if aSynced != bSynced { return aSynced < bSynced }
-            return durationDelta(a) < durationDelta(b)
+        func isSynced(_ r: LRCLibRecord) -> Bool { r.syncedLyrics?.isEmpty == false }
+
+        if !results.contains(where: { isSynced($0) && durationDelta($0) <= 2 }) {
+            var freeText = URLComponents(string: "https://lrclib.net/api/search")!
+            freeText.queryItems = [
+                URLQueryItem(name: "q", value: "\(Self.primaryArtist(track.artist)) \(Self.cleanTitle(track.title))"),
+            ]
+            if let found: [LRCLibRecord] = try? await get(freeText.url!) {
+                let known = Set(results.compactMap(\.id))
+                results += found.filter { $0.id == nil || !known.contains($0.id!) }
+            }
         }
-        if let best, best.syncedLyrics?.isEmpty == false, durationDelta(best) <= 5 {
-            return best
-        }
-        // No synced version anywhere: prefer the exact (plain) match.
+
+        let synced = results.filter(isSynced).sorted { durationDelta($0) < durationDelta($1) }
+        if let best = synced.first, durationDelta(best) <= 2 { return best }
+        if let best = synced.first, durationDelta(best) <= 5 { return best }
+        // No well-matching synced version: prefer the exact (plain) match.
         if let exactRecord, Self.content(from: exactRecord) != nil { return exactRecord }
-        return best
+        if let best = synced.first, durationDelta(best) <= 10 { return best }
+        return results.min { durationDelta($0) < durationDelta($1) }
     }
 
     /// GET + decode; returns nil on 404.
@@ -157,8 +164,8 @@ actor LyricsService {
     // MARK: Cache
 
     private func cacheKey(for track: TrackInfo) -> String {
-        // "v2": entries cached before synced lyrics were preferred are ignored.
-        let raw = ["v2", track.artist, track.title, track.album, String(Int(track.duration.rounded()))]
+        // "v3": re-fetch everything cached before the duration-matching fix.
+        let raw = ["v3", track.artist, track.title, track.album, String(Int(track.duration.rounded()))]
             .joined(separator: "\u{1F}")
             .lowercased()
         let digest = SHA256.hash(data: Data(raw.utf8))

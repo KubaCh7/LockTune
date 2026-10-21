@@ -15,6 +15,11 @@ final class LyricsController: ObservableObject {
     @Published private(set) var state: State = .idle
     /// Incremented whenever new lyrics arrive (drives the "lines animate in" effect).
     @Published private(set) var revision = 0
+    /// Per-song timing correction in seconds (+ = lyrics earlier), remembered
+    /// for every song you adjust.
+    @Published private(set) var songOffset: Double = 0
+    private static let offsetsKey = "lyricsSongOffsets"
+    static let offsetStep = 0.25
 
     private let service = LyricsService()
     private let settings: AppSettings
@@ -53,9 +58,25 @@ final class LyricsController: ObservableObject {
         Task { [service] in await service.clearCache() }
     }
 
+    /// Nudges the current song's lyrics earlier (+) or later (−).
+    func nudge(_ delta: Double) {
+        guard let track = currentTrack else { return }
+        songOffset = min(max(songOffset + delta, -10), 10)
+        var offsets = UserDefaults.standard.dictionary(forKey: Self.offsetsKey) as? [String: Double] ?? [:]
+        offsets[track.id] = abs(songOffset) < 0.001 ? nil : songOffset
+        UserDefaults.standard.set(offsets, forKey: Self.offsetsKey)
+    }
+
+    func resetAllSongOffsets() {
+        UserDefaults.standard.removeObject(forKey: Self.offsetsKey)
+        songOffset = 0
+    }
+
     private func load(_ track: TrackInfo?) {
         task?.cancel()
         currentTrack = track
+        let offsets = UserDefaults.standard.dictionary(forKey: Self.offsetsKey) as? [String: Double] ?? [:]
+        songOffset = track.flatMap { offsets[$0.id] } ?? 0
         guard let track, settings.lyricsEnabled, !track.title.isEmpty else {
             state = .idle
             return

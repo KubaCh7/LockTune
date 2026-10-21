@@ -101,9 +101,9 @@ final class NowPlayingController: ObservableObject {
         return max(0, p)
     }
 
-    private func setPosition(_ position: TimeInterval) {
+    private func setPosition(_ position: TimeInterval, at date: Date = Date()) {
         basePosition = position
-        baseDate = Date()
+        baseDate = date
         timelineRevision &+= 1
     }
 
@@ -236,7 +236,7 @@ final class NowPlayingController: ObservableObject {
         if let info = result.newTrack {
             if info != track { track = info }
             state = snapshot.state
-            setPosition(snapshot.position)
+            setPosition(snapshot.position, at: snapshot.capturedAt)
             ignoreStateUntil = .distantPast
             loadArtwork(for: info, source: result.artworkSource)
             return
@@ -249,10 +249,10 @@ final class NowPlayingController: ObservableObject {
 
         if snapshot.state != state {
             state = snapshot.state
-            setPosition(snapshot.position)
-        } else if abs(position() - snapshot.position) > 0.35 {
+            setPosition(snapshot.position, at: snapshot.capturedAt)
+        } else if abs(position(at: snapshot.capturedAt) - snapshot.position) > 0.25 {
             // Drifted (or the user seeked in the player itself): resync.
-            setPosition(snapshot.position)
+            setPosition(snapshot.position, at: snapshot.capturedAt)
         }
     }
 

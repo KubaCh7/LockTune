@@ -85,7 +85,10 @@ class AppleScriptPlayerProvider: NowPlayingProvider {
     """
 
     func snapshot() -> PlayerSnapshot? {
-        guard isRunning, let result = runner.run(snapshotScript) else { return nil }
+        guard isRunning else { return nil }
+        let started = Date()
+        guard let result = runner.run(snapshotScript) else { return nil }
+        let capturedAt = started.addingTimeInterval(Date().timeIntervalSince(started) / 2)
         let stateText = result.item(1)?.stringValue ?? "stopped"
         let state: PlaybackState
         switch stateText {
@@ -97,7 +100,8 @@ class AppleScriptPlayerProvider: NowPlayingProvider {
         let trackID = result.item(3)?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
         return PlayerSnapshot(state: state,
                               position: position.isFinite ? max(0, position) : 0,
-                              trackID: state == .stopped ? nil : trackID)
+                              trackID: state == .stopped ? nil : trackID,
+                              capturedAt: capturedAt)
     }
 
     func currentTrack() -> TrackInfo? {
