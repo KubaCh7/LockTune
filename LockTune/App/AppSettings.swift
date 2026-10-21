@@ -173,6 +173,8 @@ final class AppSettings: ObservableObject {
         static let lyricsOffset = "lyricsOffset"
         static let lyricsFont = "lyricsFont"
         static let liteMode = "liteMode"
+        static let turntableEnabled = "turntableEnabled"
+        static let turntableScale = "turntableScale"
         static let lyricsWeight = "lyricsWeight"
         static let plainLyricsOffset = "plainLyricsOffset"
         static let layoutVersion = "layoutVersion"
@@ -223,6 +225,10 @@ final class AppSettings: ObservableObject {
     /// Same two settings for the plain (transparent) mode over the normal lock screen.
     @Published var plainBottomInset: Double { didSet { defaults.set(plainBottomInset, forKey: Key.plainBottomInset) } }
     @Published var plainArtworkScale: Double { didSet { defaults.set(plainArtworkScale, forKey: Key.plainArtworkScale) } }
+
+    /// Turntable widget on the desktop (off by default) and its size.
+    @Published var turntableEnabled: Bool { didSet { defaults.set(turntableEnabled, forKey: Key.turntableEnabled) } }
+    @Published var turntableScale: Double { didSet { defaults.set(turntableScale, forKey: Key.turntableScale) } }
 
     /// Lite mode for slow Macs: everything still works, the heavy effects are off.
     @Published var liteMode: Bool { didSet { defaults.set(liteMode, forKey: Key.liteMode) } }
@@ -335,6 +341,9 @@ final class AppSettings: ObservableObject {
         lyricsOffset = defaults.double(forKey: Key.lyricsOffset).clamped(to: Self.wallpaperLyricsRange)
         plainLyricsOffset = defaults.double(forKey: Key.plainLyricsOffset).clamped(to: Self.plainLyricsRange)
         liteMode = defaults.bool(forKey: Key.liteMode)
+        turntableEnabled = defaults.bool(forKey: Key.turntableEnabled)
+        let storedScale = defaults.double(forKey: Key.turntableScale)
+        turntableScale = storedScale == 0 ? 1 : min(max(storedScale, 0.6), 1.5)
         lyricsFont = defaults.string(forKey: Key.lyricsFont).flatMap(FontChoice.init(rawValue:)) ?? .sfPro
         lyricsWeight = defaults.string(forKey: Key.lyricsWeight).flatMap(ClockWeight.init(rawValue:)) ?? .bold
         glassLevel = defaults.string(forKey: Key.glassLevel).flatMap(GlassLevel.init(rawValue:)) ?? .normal

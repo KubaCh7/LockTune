@@ -11,6 +11,7 @@ final class AppCoordinator: ObservableObject {
     let lyrics: LyricsController
     let overlayState: OverlayState
     let widget: LockWidgetController
+    let desktopWidget: DesktopWidgetController
 
     private let hotkeys = HotkeyManager()
     private let idleMonitor = IdleMonitor()
@@ -34,6 +35,7 @@ final class AppCoordinator: ObservableObject {
         overlayState = OverlayState()
         widget = LockWidgetController(overlay: overlayState, player: nowPlaying,
                                       lyrics: lyrics, settings: settings)
+        desktopWidget = DesktopWidgetController(player: nowPlaying, settings: settings)
         widget.lockScreenLayer = SkyLightLockScreenLayer()
         overlayState.onLyricsShown = { [weak player = self.nowPlaying] in player?.poll() }
     }
@@ -44,6 +46,7 @@ final class AppCoordinator: ObservableObject {
 
         nowPlaying.start()
         widget.prepare()
+        desktopWidget.start()
 
         // Global shortcut: lock the Mac (the widget then appears by itself).
         hotkeys.onTrigger = { [weak self] in self?.lockNow() }

@@ -616,6 +616,25 @@ private struct LookSettings: View {
                 .padding(.vertical, 4)
             }
 
+            Section("Desktop turntable") {
+                Toggle("Show a turntable on the desktop", isOn: $settings.turntableEnabled)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Size: \(Int((settings.turntableScale * 100).rounded())) %")
+                    Slider(value: $settings.turntableScale, in: 0.6...1.5, step: 0.05) {
+                        EmptyView()
+                    } minimumValueLabel: {
+                        Image(systemName: "opticaldisc").font(.caption)
+                    } maximumValueLabel: {
+                        Image(systemName: "opticaldisc").font(.title3)
+                    }
+                }
+                .disabled(!settings.turntableEnabled)
+                Button("Reset Position") { AppCoordinator.shared.desktopWidget.resetPosition() }
+                    .disabled(!settings.turntableEnabled)
+                Text("Sits on your wallpaper, under all app windows. Drag it anywhere; click the record to play/pause.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             Section("Animation") {
                 Picker("Smoothness", selection: $settings.animationFPS) {
                     ForEach(AppSettings.fpsOptions, id: \.self) { Text("\($0) fps").tag($0) }
