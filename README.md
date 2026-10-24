@@ -5,7 +5,7 @@
 <h1 align="center">LockTune</h1>
 
 <p align="center">
-  The Spotify / Apple Music player and synced lyrics on your Mac's lock screen.
+  The Spotify / Apple Music player and synced lyrics on your Mac's — and now your PC's — lock screen.
 </p>
 
 <p align="center">
@@ -17,6 +17,18 @@
 <p align="center">
   macOS 12 or newer · Apple Silicon and Intel ·
   <a href="https://github.com/KubaCh7/LockTune/releases/latest">all files</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/KubaCh7/LockTune/releases/download/windows-latest/LockTune-Setup.exe">
+    <img src="https://img.shields.io/badge/Pobierz%20%2F%20Download-Windows%2010%20%2F%2011-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download LockTune for Windows">
+  </a>
+</p>
+
+<p align="center">
+  Windows 10 (1809+) and 11, 64-bit ·
+  <a href="https://github.com/KubaCh7/LockTune/releases/tag/windows-latest">all Windows files</a> ·
+  <a href="#-windows">details</a>
 </p>
 
 ### 🇵🇱 Instalacja
@@ -154,6 +166,39 @@ To add a new source (for example a browser or another player), implement `NowPla
   - Lines blur and fade with distance from the current line; blur is turned off while you scroll manually.
 
 ---
+
+## 🪟 Windows
+
+LockTune for Windows (`Windows/`, C# + WPF, .NET 8) works the same way as the Mac app: the same lock screen with clock and date, the artwork that shrinks when paused, a blurred, animated artwork background, glass controls, Apple Music-style synced lyrics (LRCLIB, word by word), the left toolbar, per-song lyrics timing, layout sliders, presets, Lite mode, the desktop turntable and in-app updates.
+
+### 🇵🇱 Instalacja na Windowsie
+
+1. Kliknij przycisk **Windows 10 / 11** powyżej. Pobierze się `LockTune-Setup.exe`.
+2. Uruchom go. Nie trzeba uprawnień administratora. Windows może pokazać „System Windows ochronił ten komputer”, bo aplikacja nie ma płatnego podpisu: kliknij **Więcej informacji → Uruchom mimo to**.
+3. LockTune pojawi się przy zegarze na pasku zadań (ikona LockTune; czasem jest schowana pod strzałką ^).
+4. Włącz muzykę (Spotify, Apple Music, przeglądarka…) i naciśnij **Ctrl+Alt+L**. Pokaże się ekran blokady LockTune z muzyką.
+5. **Kliknięcie ikony LockTune** pokazuje ten sam ekran jako podgląd (zamykasz go klawiszem Esc).
+6. Żeby wyjść z ekranu blokady: kliknij **„Click here… to unlock”** na dole, przesuń w górę albo naciśnij **Enter**. Windows wtedy naprawdę się zablokuje i poprosi o PIN lub hasło.
+
+**Aktualizacje:** LockTune sama sprawdza nowe wersje i pokazuje powiadomienie. Kliknij je, a aplikacja zaktualizuje się i uruchomi ponownie. Możesz też sprawdzić ręcznie: Ustawienia → **Status → Check for updates**.
+
+### How it works on Windows (and its limits)
+
+- **Windows does not let any app draw on its own lock screen.** The lock screen is a separate, protected desktop, so nothing can be added to it (that's also why there's no SkyLight-style trick like on the Mac). LockTune therefore shows **its own lock screen first**. With **Require Windows password** on (the default), leaving it locks Windows for real (`LockWorkStation`) and you sign in with your PIN, password or Windows Hello.
+- While the LockTune lock screen is up, the Windows key, Alt+Tab, Alt+Esc, Ctrl+Esc, Alt+F4 and Ctrl+Shift+Esc are blocked. Ctrl+Alt+Del can't be blocked by any app, so if another window comes to the front (for example Task Manager from the Ctrl+Alt+Del screen), LockTune locks Windows immediately.
+- **Win+L** still locks Windows directly. Windows then shows its own lock screen; recent Windows versions show a small media control there. With **General → Album cover on the Windows lock screen** (experimental) LockTune also puts the current album cover there as the lock screen picture. This replaces your lock screen picture or Spotlight.
+- Music comes from Windows media sessions (the same source as the volume flyout). Spotify, Apple Music, iTunes, browsers and most players work without any setup. How precisely a player reports its position differs; use the lyrics timing slider or the per-song − / + buttons if lyrics run early or late.
+- The app isn't code-signed, so SmartScreen warns on first run.
+- The desktop turntable sits on the wallpaper below all windows. **Win+D** (show desktop) may hide it until you switch back to a window.
+
+### Building it yourself
+
+```
+dotnet publish Windows/LockTune/LockTune.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
+```
+
+`LockTune.exe --self-test <folder>` runs the built-in checks and writes screenshots of the lock screen, turntable and settings to `<folder>`. CI does this on every push (`.github/workflows/build-windows.yml`) and publishes the **windows-latest** release.
+
 
 ## Honest list of limitations
 

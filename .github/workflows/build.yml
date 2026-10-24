@@ -9,6 +9,9 @@ on:
     # Docs-only changes don't need a new build/release.
     paths-ignore:
       - '**.md'
+      # The Windows app has its own workflow.
+      - 'Windows/**'
+      - '.github/workflows/build-windows.yml'
   workflow_dispatch:
     inputs:
       release_version:

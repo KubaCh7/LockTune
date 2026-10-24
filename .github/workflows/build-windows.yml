@@ -1,0 +1,91 @@
+name: Build LockTune for Windows
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Windows/**'
+      - '.github/workflows/build-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: App icon (from the Mac icon)
+        shell: pwsh
+        run: ./Windows/scripts/make-icon.ps1
+
+      - name: Publish (single self-contained LockTune.exe)
+        shell: pwsh
+        run: |
+          dotnet publish Windows/LockTune/LockTune.csproj -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true `
+            -p:DebugType=none -p:Version=1.0.${{ github.run_number }} -o out
+          Get-Item out/LockTune.exe | Format-List Name, Length
+
+      - name: Self-test on this PC
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath out/LockTune.exe -ArgumentList '--self-test', "$PWD\selftest" -PassThru
+          $null = $p.Handle  # keeps ExitCode readable after the process ends
+          if (-not $p.WaitForExit(300000)) { $p.Kill(); Write-Error "Self-test timed out"; exit 1 }
+          Get-Content selftest/selftest.log
+          if (Test-Path "$env:APPDATA\LockTune\errors.log") { Get-Content "$env:APPDATA\LockTune\errors.log" }
+          exit $p.ExitCode
+
+      - name: Upload self-test screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selftest
+          path: selftest
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc /Qp "/DAppVersion=1.0.${{ github.run_number }}" "/DSourceExe=$PWD\out\LockTune.exe" Windows/installer/LockTune.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Move-Item Windows/installer/LockTune-Setup.exe .
+          Copy-Item out/LockTune.exe .
+          # Read by the in-app updater.
+          '{"build": ${{ github.run_number }}, "commit": "${{ github.sha }}"}' | Set-Content -Encoding ascii version-windows.json
+          Compress-Archive -Path selftest/*.png -DestinationPath LockTune-previews.zip
+          Get-ChildItem LockTune-Setup.exe, LockTune.exe, version-windows.json | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LockTune-Windows
+          path: |
+            LockTune-Setup.exe
+            LockTune.exe
+
+      - name: Publish "windows-latest" release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete windows-latest --yes --cleanup-tag 2>$null
+          $global:LASTEXITCODE = 0  # fine if there was none yet
+          # Not marked "latest": the macOS release keeps that badge.
+          gh release create windows-latest LockTune-Setup.exe LockTune.exe version-windows.json LockTune-previews.zip `
+            --target "${{ github.sha }}" `
+            --title "LockTune for Windows – build ${{ github.run_number }}" `
+            --latest=false `
+            --notes "Download **LockTune-Setup.exe** and run it (no admin needed). Windows SmartScreen may say *Windows protected your PC* because the app isn't signed: click **More info → Run anyway**. Or use the portable **LockTune.exe**. Windows 10 (1809+) and Windows 11, 64-bit. Built from ${{ github.sha }}."
+          exit $LASTEXITCODE
