@@ -169,24 +169,25 @@ To add a new source (for example a browser or another player), implement `NowPla
 
 ## 🪟 Windows
 
-LockTune for Windows (`Windows/`, C# + WPF, .NET 8) works the same way as the Mac app: the same lock screen with clock and date, the artwork that shrinks when paused, a blurred, animated artwork background, glass controls, Apple Music-style synced lyrics (LRCLIB, word by word), the left toolbar, per-song lyrics timing, layout sliders, presets, Lite mode, the desktop turntable and in-app updates.
+LockTune for Windows (`Windows/`, C# + WPF, .NET 8) is a 1:1 port of the Mac app: the same widget (artwork that shrinks when paused, glass player card, Apple Music-style synced lyrics word by word, the left toolbar with lyrics / − + / position / wallpaper / hide), the same artwork wallpaper and "without wallpaper" modes, the same settings window (Status / General / Look / Layout / Lyrics, same options, ranges and defaults), the same ♪ menu, desktop turntable and in-app updates. Presets are the same JSON on both, so a preset exported on the Mac imports on Windows and the other way round.
 
 ### 🇵🇱 Instalacja na Windowsie
 
 1. Kliknij przycisk **Windows 10 / 11** powyżej. Pobierze się `LockTune-Setup.exe`.
 2. Uruchom go. Nie trzeba uprawnień administratora. Windows może pokazać „System Windows ochronił ten komputer”, bo aplikacja nie ma płatnego podpisu: kliknij **Więcej informacji → Uruchom mimo to**.
-3. LockTune pojawi się przy zegarze na pasku zadań (ikona LockTune; czasem jest schowana pod strzałką ^).
+3. LockTune pojawi się przy zegarze na pasku zadań (ikona ♪ z domkiem, jak na Macu; czasem jest schowana pod strzałką ^).
 4. Włącz muzykę (Spotify, Apple Music, przeglądarka…) i naciśnij **Ctrl+Alt+L**. Pokaże się ekran blokady LockTune z muzyką.
 5. **Kliknięcie ikony LockTune** pokazuje ten sam ekran jako podgląd (zamykasz go klawiszem Esc).
-6. Żeby wyjść z ekranu blokady: kliknij **„Click here… to unlock”** na dole, przesuń w górę albo naciśnij **Enter**. Windows wtedy naprawdę się zablokuje i poprosi o PIN lub hasło.
+6. Żeby wyjść z ekranu blokady: naciśnij **Enter** albo kliknij napis na dole. Windows wtedy naprawdę się zablokuje i poprosi o PIN lub hasło.
 
 **Aktualizacje:** LockTune sama sprawdza nowe wersje i pokazuje powiadomienie. Kliknij je, a aplikacja zaktualizuje się i uruchomi ponownie. Możesz też sprawdzić ręcznie: Ustawienia → **Status → Check for updates**.
 
 ### How it works on Windows (and its limits)
 
-- **Windows does not let any app draw on its own lock screen.** The lock screen is a separate, protected desktop, so nothing can be added to it (that's also why there's no SkyLight-style trick like on the Mac). LockTune therefore shows **its own lock screen first**. With **Require Windows password** on (the default), leaving it locks Windows for real (`LockWorkStation`) and you sign in with your PIN, password or Windows Hello.
+- **Windows does not let any app draw on its own lock screen.** The lock screen is a separate, protected desktop, so nothing can be added to it (that's also why there's no SkyLight-style trick like on the Mac). LockTune therefore shows **its own lock screen first** — in "without wallpaper" mode it shows your wallpaper, the clock and your name like a lock screen. Leaving it locks Windows for real (`LockWorkStation`) and you sign in with your PIN, password or Windows Hello.
 - While the LockTune lock screen is up, the Windows key, Alt+Tab, Alt+Esc, Ctrl+Esc, Alt+F4 and Ctrl+Shift+Esc are blocked. Ctrl+Alt+Del can't be blocked by any app, so if another window comes to the front (for example Task Manager from the Ctrl+Alt+Del screen), LockTune locks Windows immediately.
-- **Win+L** still locks Windows directly. Windows then shows its own lock screen; recent Windows versions show a small media control there. With **General → Album cover on the Windows lock screen** (experimental) LockTune also puts the current album cover there as the lock screen picture. This replaces your lock screen picture or Spotlight.
+- **Win+L** still locks Windows directly, without LockTune (recent Windows versions show a small media control there).
+- SF Symbols and Apple's fonts can't be shipped on Windows: the icons are drawn to match, and fonts fall back to the closest Windows font (SF Pro → Segoe UI Variable, New York → Sitka, …) unless you have the Apple font installed.
 - Music comes from Windows media sessions (the same source as the volume flyout). Spotify, Apple Music, iTunes, browsers and most players work without any setup. How precisely a player reports its position differs; use the lyrics timing slider or the per-song − / + buttons if lyrics run early or late.
 - The app isn't code-signed, so SmartScreen warns on first run.
 - The desktop turntable sits on the wallpaper below all windows. **Win+D** (show desktop) may hide it until you switch back to a window.

@@ -209,8 +209,9 @@ public static class ArtworkAnalyzer
         }
     }
 
-    /// The desktop wallpaper, small and blurred (for the "Windows wallpaper" background).
-    public static BitmapSource? BlurredWallpaper()
+    /// The desktop wallpaper (the backdrop of "without wallpaper" mode,
+    /// like the normal lock screen showing your wallpaper on the Mac).
+    public static BitmapSource? Wallpaper(int width)
     {
         var path = Platform.Native.DesktopWallpaperPath();
         if (path == null || !File.Exists(path)) return null;
@@ -219,11 +220,11 @@ public static class ArtworkAnalyzer
             var image = new BitmapImage();
             image.BeginInit();
             image.CacheOption = BitmapCacheOption.OnLoad;
-            image.DecodePixelWidth = 480;
+            image.DecodePixelWidth = Math.Clamp(width, 640, 3840);
             image.UriSource = new Uri(path);
             image.EndInit();
             image.Freeze();
-            return MakeBlurred(image, 160, 6, 1.1);
+            return image;
         }
         catch (Exception)
         {

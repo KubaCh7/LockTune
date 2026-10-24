@@ -3,7 +3,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection;
 using System.Windows;
-using System.Windows.Threading;
 using Microsoft.Win32;
 using LockTune.Core;
 using LockTune.Lyrics;
@@ -13,8 +12,9 @@ using LockTune.UI;
 
 namespace LockTune;
 
-/// Wires the services together: now playing, lyrics, the lock screen and its
-/// triggers (shortcut, tray, idle), the turntable and updates.
+/// Wires the services together (AppCoordinator.swift): now playing, lyrics,
+/// the lock screen and its triggers (shortcut, menu, idle), the turntable
+/// and updates.
 public sealed class AppCoordinator
 {
     public AppSettings Settings { get; }
@@ -23,8 +23,8 @@ public sealed class AppCoordinator
     public LockScreenController LockScreen { get; }
     public Updater Updater { get; }
     public TurntableWindow? Turntable { get; private set; }
-    public bool HotkeyAvailable { get; private set; } = true;
-    public string? LockImageStatus { get; private set; }
+    /// The shortcut could not be registered (already used by another app).
+    public bool HotkeyUnavailable { get; private set; }
 
     /// Something shown on the Status page changed.
     public event Action? StatusChanged;
@@ -33,7 +33,6 @@ public sealed class AppCoordinator
     private readonly IdleMonitor idle = new();
     private TrayIcon? tray;
     private SettingsWindow? settingsWindow;
-    private DispatcherTimer? lockImageTimer;
 
     public static int Build => Assembly.GetEntryAssembly()?.GetName().Version?.Build ?? 0;
     public static string VersionString
@@ -59,15 +58,17 @@ public sealed class AppCoordinator
         _ = Media.StartAsync();
         Media.TrackChanged += OnStatus;
         Media.PlaybackChanged += OnStatus;
-        Media.ArtworkChanged += OnArtworkChanged;
+        Media.ArtworkChanged += OnStatus;
         Lyrics.PropertyChanged += (_, _) => OnStatus();
         Updater.StatusChanged += OnStatus;
         Updater.Found += OnUpdateFound;
 
         tray = new TrayIcon(this);
 
+        // Global shortcut: lock (the widget then appears).
         hotkeys.Pressed += LockNow;
         ApplyHotkey();
+        // Optional: lock after being idle while music plays.
         idle.Idle += () =>
         {
             if (Media.IsPlaying && !LockScreen.IsVisible) LockNow();
@@ -81,12 +82,13 @@ public sealed class AppCoordinator
         UpdateTurntable();
         Updater.Start();
 
-        if (!Settings.FirstRunDone)
+        // First launch: show the status window so it's obvious the app runs
+        // (the tray icon can hide under the ^ arrow).
+        if (!Settings.DidShowWelcome)
         {
-            Settings.FirstRunDone = true;
+            Settings.DidShowWelcome = true;
             Settings.Save();
             OpenSettings();
-            tray.Notify("LockTune is running", $"It lives in the taskbar corner. Press {Settings.Hotkey} to show your music lock screen.");
         }
         else if (updated)
             tray.Notify("LockTune updated", $"You're on {VersionString}.");
@@ -96,11 +98,11 @@ public sealed class AppCoordinator
 
     // MARK: Actions
 
-    /// Shortcut / tray / idle: show the LockTune lock screen (or just lock
-    /// Windows when nothing is playing).
+    /// Shows the LockTune lock screen (leaving it locks Windows). With the
+    /// widget turned off or nothing playing, it just locks Windows.
     public void LockNow()
     {
-        if (!Media.HasTrack)
+        if (!Settings.LockWidgetEnabled || !Media.HasTrack)
         {
             Native.LockWorkStation();
             return;
@@ -109,10 +111,13 @@ public sealed class AppCoordinator
         LockScreen.Show(Presentation.Lock);
     }
 
-    /// Same screen, closes with Esc / a click — no password needed.
-    public void ShowPreview() => LockScreen.Show(Presentation.Preview);
+    public void TogglePreview()
+    {
+        if (LockScreen.IsVisible && LockScreen.Presentation == Presentation.Preview) LockScreen.Hide();
+        else LockScreen.Show(Presentation.Preview);
+    }
 
-    public void OpenSettings(int tab = -1)
+    public void OpenSettings()
     {
         if (LockScreen.IsSecure) return;
         if (settingsWindow == null)
@@ -121,11 +126,11 @@ public sealed class AppCoordinator
             settingsWindow.Closed += (_, _) => settingsWindow = null;
             settingsWindow.Show();
         }
-        if (tab >= 0) settingsWindow.Select(tab, true);
         if (settingsWindow.WindowState == WindowState.Minimized) settingsWindow.WindowState = WindowState.Normal;
         settingsWindow.Activate();
     }
 
+    /// The settings recorder needs the current shortcut to reach it, not us.
     public void SuspendHotkey() => hotkeys.Unregister();
     public void ResumeHotkey() => ApplyHotkey();
 
@@ -139,6 +144,8 @@ public sealed class AppCoordinator
         Settings.Save();
         Application.Current.Shutdown();
     }
+
+    public async void InstallUpdate() => await Updater.InstallAsync();
 
     public static void OpenUrl(string url)
     {
@@ -166,7 +173,6 @@ public sealed class AppCoordinator
             case nameof(AppSettings.Hotkey):
             case nameof(AppSettings.HotkeyEnabled):
                 ApplyHotkey();
-                tray?.Refresh();
                 break;
             case nameof(AppSettings.IdleEnabled):
             case nameof(AppSettings.IdleMinutes):
@@ -174,22 +180,17 @@ public sealed class AppCoordinator
                 break;
             case nameof(AppSettings.TurntableEnabled):
                 UpdateTurntable();
-                tray?.Refresh();
-                break;
-            case nameof(AppSettings.WindowsLockImage):
-                if (Settings.WindowsLockImage) OnArtworkChanged();
-                else LockImageStatus = null;
                 break;
         }
     }
 
     private void ApplyHotkey()
     {
-        if (Settings.HotkeyEnabled) HotkeyAvailable = hotkeys.Register(Settings.Hotkey);
+        if (Settings.HotkeyEnabled) HotkeyUnavailable = !hotkeys.Register(Settings.Hotkey);
         else
         {
             hotkeys.Unregister();
-            HotkeyAvailable = true;
+            HotkeyUnavailable = false;
         }
         OnStatus();
     }
@@ -210,38 +211,11 @@ public sealed class AppCoordinator
         else Turntable?.Hide();
     }
 
-    private void OnArtworkChanged()
-    {
-        OnStatus();
-        if (!Settings.WindowsLockImage) return;
-        // Debounced: skipping through songs shouldn't rewrite the picture each time.
-        lockImageTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-        lockImageTimer.Stop();
-        lockImageTimer.Tick -= OnLockImageTimer;
-        lockImageTimer.Tick += OnLockImageTimer;
-        lockImageTimer.Start();
-    }
-
-    private async void OnLockImageTimer(object? sender, EventArgs e)
-    {
-        lockImageTimer?.Stop();
-        if (!Settings.WindowsLockImage || Media.Artwork == null) return;
-        LockImageStatus = await WindowsLockImage.SetAsync(Media);
-        OnStatus();
-    }
-
     private async void OnUpdateFound(int build, bool userInitiated)
     {
         if (LockScreen.IsVisible) return;
-        if (!userInitiated)
-        {
-            tray?.Notify("LockTune update available", $"Build {build} is ready. Open Settings → Status, or click here to install.", install: true);
-            return;
-        }
-        var answer = MessageBox.Show($"LockTune build {build} is available (you have {VersionString}).\n\nInstall it now? LockTune restarts by itself.",
+        var answer = MessageBox.Show($"LockTune build {build} is available (you have {VersionString}).\n\nUpdate now? LockTune restarts by itself.",
                                      "LockTune update", MessageBoxButton.YesNo, MessageBoxImage.Information);
         if (answer == MessageBoxResult.Yes) await Updater.InstallAsync();
     }
-
-    public async void InstallUpdate() => await Updater.InstallAsync();
 }

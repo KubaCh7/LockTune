@@ -70,10 +70,14 @@ public static class SelfTest
             var json = System.Text.Json.JsonSerializer.Serialize(s, AppSettings.JsonOptions);
             var back = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json, AppSettings.JsonOptions)!;
             Check("Settings round trip", back.ArtworkScale == 1.7 && back.LyricsPosition == LyricsPosition.Center && back.GlassLevel == GlassLevel.Mega);
-            var preset = s.ExportPreset();
+            var preset = s.ExportPreset("Test");
             var other = new AppSettings();
-            Check("Preset import", other.ImportPreset(preset) && other.ArtworkScale == 1.7 && other.GlassLevel == GlassLevel.Mega);
-            Check("Preset rejects junk", !other.ImportPreset("{\"hello\": 1}"));
+            Check("Preset import", other.ImportPreset(preset, out var presetName) && presetName == "Test" && other.ArtworkScale == 1.7 && other.GlassLevel == GlassLevel.Mega);
+            Check("Preset rejects junk", !other.ImportPreset("{\"hello\": 1}", out _));
+            // A preset exported by the Mac app.
+            var mac = "{\"format\":\"LockTune preset\",\"version\":1,\"name\":\"Mac\",\"clockFont\":\"newYork\",\"clockWeight\":\"ultraLight\",\"glassLevel\":\"normal\",\"lyricsPosition\":\"center\",\"artworkScale\":2.2,\"lockWallpaper\":false}";
+            Check("Mac preset import", other.ImportPreset(mac, out _) && other.ClockWeight == ClockWeight.UltraLight && other.LyricsPosition == LyricsPosition.Center && !other.LockWallpaper);
+            Check("Preset uses Mac names", preset.Contains("\"glassLevel\": \"mega\"") && preset.Contains("\"clockFont\": \"newYork\""), preset.Replace("\n", " "));
             Check("Hotkey text", Hotkey.Default.ToString() == "Ctrl+Alt+L", Hotkey.Default.ToString());
         }
         catch (Exception e) { Check("Settings", false, e.ToString()); }
@@ -135,13 +139,14 @@ public static class SelfTest
         }))));
 
         var view = new LockScreenView(app.Media, app.Lyrics, settings) { Presentation = Presentation.Lock };
+        bool withLyrics = false;
         void Shot(string name, Action prepare)
         {
             prepare();
             var size = new Size(1920, 1080);
-            view.ShowStatic(settings.OpenWithLyrics);
             view.Measure(size);
             view.Arrange(new Rect(size));
+            view.ShowStatic(withLyrics);
             view.UpdateLayout();
             for (int i = 0; i < 120; i++) view.Tick(1.0 / 60);
             view.UpdateLayout();
@@ -149,17 +154,21 @@ public static class SelfTest
             check($"Render {name}", !IsBlank(bitmap), "");
         }
 
-        Shot("lock-player", () => settings.OpenWithLyrics = false);
-        Shot("lock-lyrics-right", () => settings.OpenWithLyrics = true);
+        Shot("lock-player", () => withLyrics = false);
+        Shot("lock-lyrics-right", () => withLyrics = true);
         Shot("lock-lyrics-center", () => settings.LyricsPosition = LyricsPosition.Center);
         Shot("lock-mega-glass", () => { settings.LyricsPosition = LyricsPosition.Left; settings.GlassLevel = GlassLevel.Mega; });
+        Shot("lock-no-wallpaper", () => { settings.GlassLevel = GlassLevel.Normal; settings.LyricsPosition = LyricsPosition.Right; settings.LockWallpaper = false; withLyrics = false; });
+        Shot("lock-no-wallpaper-lyrics", () => withLyrics = true);
         Shot("lock-lite-paused", () =>
         {
-            settings.GlassLevel = GlassLevel.Normal;
+            settings.LockWallpaper = true;
             settings.LiteMode = true;
-            settings.OpenWithLyrics = false;
+            withLyrics = false;
             app.Media.SetTestState(track, art, playing: false, position: 61);
         });
+        view.Presentation = Presentation.Preview;
+        Shot("preview", () => settings.LiteMode = false);
 
         var turntable = new TurntableWindow(app.Media, settings) { Left = -5000, Top = -5000 };
         turntable.Show();
@@ -176,7 +185,7 @@ public static class SelfTest
         window.Show();
         for (int tab = 0; tab < 5; tab++)
         {
-            window.Select(tab, animated: false);
+            window.SelectTab(tab);
             window.UpdateLayout();
             if (window.Content is FrameworkElement content)
             {

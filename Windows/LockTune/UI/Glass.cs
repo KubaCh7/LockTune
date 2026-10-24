@@ -9,55 +9,78 @@ using LockTune.Core;
 
 namespace LockTune.UI;
 
-/// Icon glyphs (Segoe Fluent Icons on Windows 11, Segoe MDL2 Assets on Windows 10).
-public static class Icons
-{
-    public static readonly FontFamily Font = new("Segoe Fluent Icons, Segoe MDL2 Assets");
-    public const string Play = "", Pause = "", Previous = "", Next = "";
-    public const string Lyrics = "", Photo = "", View = "", Hide = "", Close = "";
-    public const string Add = "", Remove = "", Lock = "", Unlock = "", Music = "";
-    public const string DockLeft = "", DockRight = "", Center = "", Settings = "";
-    public const string ChevronUp = "";
-}
-
-/// "Liquid glass" look in WPF: translucent fill with a light rim. The
-/// background behind it is already blurred, so it reads as frosted glass.
+/// The Mac app's glass (Glass.swift, "imitation" path): frosted material, a
+/// soft top sheen, a bright uneven rim and a shadow. Lite mode: a flat
+/// translucent fill; Off: classic frosted blur.
 public static class Glass
 {
-    public static Brush Fill(GlassLevel level, bool light)
+    /// `dark` = the widget's colour scheme (light artwork → light glass).
+    public static void Apply(Border border, GlassLevel level, bool lite, bool dark = true, bool onlyInMega = false)
     {
+        if (onlyInMega && (level != GlassLevel.Mega || lite))
+        {
+            border.Background = Brushes.Transparent;
+            border.BorderBrush = null;
+            border.BorderThickness = new Thickness(0);
+            border.Effect = null;
+            return;
+        }
+        if (lite)
+        {
+            border.Background = Frozen(new SolidColorBrush(Color.FromArgb(107, 0, 0, 0)));
+            border.BorderBrush = Frozen(new SolidColorBrush(Color.FromArgb(36, 255, 255, 255)));
+            border.BorderThickness = new Thickness(0.5);
+            border.Effect = null;
+            return;
+        }
         if (level == GlassLevel.Off)
-            return Frozen(new SolidColorBrush(Color.FromArgb(light ? (byte)70 : (byte)80, light ? (byte)255 : (byte)0,
-                                                             light ? (byte)255 : (byte)0, light ? (byte)255 : (byte)0)));
-        double top = level == GlassLevel.Mega ? 0.30 : 0.20, bottom = level == GlassLevel.Mega ? 0.12 : 0.09;
-        if (light) { top += 0.15; bottom += 0.15; }
-        return Frozen(new LinearGradientBrush(Color.FromArgb((byte)(top * 255), 255, 255, 255),
-                                              Color.FromArgb((byte)(bottom * 255), 255, 255, 255), 90));
+        {
+            border.Background = Material(ultraThin: true, dark, sheen: 0);
+            border.BorderBrush = Frozen(new SolidColorBrush(Color.FromArgb(36, 255, 255, 255)));
+            border.BorderThickness = new Thickness(0.5);
+            border.Effect = null;
+            return;
+        }
+        bool mega = level == GlassLevel.Mega;
+        border.Background = Material(ultraThin: mega, dark, sheen: mega ? 0.22 : 0.14);
+        border.BorderBrush = Rim(mega ? 1 : 0.7);
+        border.BorderThickness = new Thickness(1.2);
+        border.Effect = Shadow(mega ? 0.28 : 0.18, mega ? 22 : 14, mega ? 10 : 6);
     }
 
-    public static Brush Rim(GlassLevel level)
+    /// Frosted material + sheen (white top → clear → faint white bottom).
+    private static Brush Material(bool ultraThin, bool dark, double sheen)
     {
-        if (level == GlassLevel.Off) return Brushes.Transparent;
-        double strong = level == GlassLevel.Mega ? 0.75 : 0.45;
+        var material = dark
+            ? Color.FromArgb(ultraThin ? (byte)70 : (byte)105, 28, 28, 32)
+            : Color.FromArgb(ultraThin ? (byte)90 : (byte)140, 250, 250, 252);
+        var group = new DrawingGroup();
+        var rect = new RectangleGeometry(new Rect(0, 0, 1, 1));
+        group.Children.Add(new GeometryDrawing(new SolidColorBrush(material), null, rect));
+        if (sheen > 0)
+        {
+            var gradient = new LinearGradientBrush { StartPoint = new Point(0.5, 0), EndPoint = new Point(0.5, 1) };
+            gradient.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(sheen * 255), 255, 255, 255), 0));
+            gradient.GradientStops.Add(new GradientStop(Colors.Transparent, 0.5));
+            gradient.GradientStops.Add(new GradientStop(Color.FromArgb(13, 255, 255, 255), 1));
+            group.Children.Add(new GeometryDrawing(gradient, null, rect));
+        }
+        return Frozen(new DrawingBrush(group) { Stretch = Stretch.Fill });
+    }
+
+    /// Light catching the edge: bright top-left, faint middle, highlight bottom-right.
+    public static Brush Rim(double strength)
+    {
         var brush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
-        brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(strong * 255), 255, 255, 255), 0));
-        brush.GradientStops.Add(new GradientStop(Color.FromArgb(18, 255, 255, 255), 0.45));
-        brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(strong * 0.55 * 255), 255, 255, 255), 1));
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(0.75 * strength * 255), 255, 255, 255), 0));
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(0.08 * strength * 255), 255, 255, 255), 0.5));
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(0.4 * strength * 255), 255, 255, 255), 1));
         return Frozen(brush);
     }
 
-    public static Thickness RimThickness(GlassLevel level) => new(level == GlassLevel.Mega ? 1.5 : level == GlassLevel.Off ? 0 : 1);
-
-    /// Applies the glass look to a border.
-    public static void Apply(Border border, GlassLevel level, bool light, bool lite)
-    {
-        border.Background = Fill(level, light);
-        border.BorderBrush = Rim(level);
-        border.BorderThickness = RimThickness(level);
-        border.Effect = lite || level == GlassLevel.Off ? null
-            : new DropShadowEffect { BlurRadius = level == GlassLevel.Mega ? 30 : 22, ShadowDepth = 6, Direction = 270,
-                                     Opacity = level == GlassLevel.Mega ? 0.28 : 0.2, Color = Colors.Black };
-    }
+    /// SwiftUI .shadow(color: .black.opacity(o), radius: r, y: y).
+    public static DropShadowEffect Shadow(double opacity, double radius, double y) =>
+        new() { Color = Colors.Black, Opacity = opacity, BlurRadius = radius * 2, ShadowDepth = y, Direction = 270 };
 
     public static T Frozen<T>(T freezable) where T : Freezable
     {
@@ -65,19 +88,24 @@ public static class Glass
         return freezable;
     }
 
-    public static FontWeight Weight(string name) => name switch
+    public static FontWeight Weight(ClockWeight weight) => weight switch
     {
-        "Light" => FontWeights.Light,
-        "Regular" => FontWeights.Normal,
-        "Medium" => FontWeights.Medium,
-        "SemiBold" => FontWeights.SemiBold,
-        "Bold" => FontWeights.Bold,
-        "Black" => FontWeights.Black,
-        _ => FontWeights.SemiBold,
+        ClockWeight.UltraLight => FontWeights.UltraLight,
+        ClockWeight.Thin => FontWeights.Thin,
+        ClockWeight.Light => FontWeights.Light,
+        ClockWeight.Regular => FontWeights.Normal,
+        ClockWeight.Medium => FontWeights.Medium,
+        ClockWeight.Semibold => FontWeights.SemiBold,
+        _ => FontWeights.Bold,
     };
 
-    /// The chosen font, falling back to Segoe UI when it isn't installed.
-    public static FontFamily Family(string name) => new($"{name}, Segoe UI Variable Display, Segoe UI");
+    public static FontFamily Family(FontChoice font) => new(Titles.Family(font));
+
+    /// SF Pro (system font) stand-in.
+    public static readonly FontFamily System = new("SF Pro Display, Segoe UI Variable Display, Segoe UI");
+    public static readonly FontFamily SystemText = new("SF Pro Text, Segoe UI Variable Text, Segoe UI");
+    /// SF Pro Rounded stand-in (times under the progress bar).
+    public static readonly FontFamily Rounded = new("SF Pro Rounded, Segoe UI Variable Display, Segoe UI");
 
     public static void Animate(UIElement element, DependencyProperty property, double to, double seconds,
                                IEasingFunction? easing = null, double delay = 0)
@@ -101,38 +129,26 @@ public static class Glass
         target.BeginAnimation(property, animation);
     }
 
-    /// Spring-like ease (slight overshoot), close to iOS springs.
+    /// Close to SwiftUI's .spring(response: ~0.6, dampingFraction: ~0.8).
     public static IEasingFunction Spring => new BackEase { Amplitude = 0.25, EasingMode = EasingMode.EaseOut };
+    /// Bouncier spring (dampingFraction ≈ 0.66).
+    public static IEasingFunction Bouncy => new ElasticEase { Oscillations = 1, Springiness = 5, EasingMode = EasingMode.EaseOut };
 }
 
-/// Round glass button with an icon glyph; shrinks while pressed.
-public sealed class GlassButton : Border
+/// Plain button that shrinks while pressed, like iOS media controls
+/// (PressableButtonStyle in the Mac app).
+public class PressableButton : Border
 {
-    private readonly TextBlock glyph;
     private readonly ScaleTransform scale = new(1, 1);
     private bool pressed;
     public event Action? Click;
 
-    public GlassButton(string icon, double size, double iconSize, string tooltip, bool glass = true)
+    public PressableButton()
     {
-        Width = size;
-        Height = size;
-        CornerRadius = new CornerRadius(size / 2);
         Cursor = Cursors.Hand;
-        ToolTip = tooltip;
+        Background = Brushes.Transparent;
         RenderTransformOrigin = new Point(0.5, 0.5);
         RenderTransform = scale;
-        Background = Brushes.Transparent;
-        IsGlass = glass;
-        glyph = new TextBlock
-        {
-            Text = icon,
-            FontFamily = Icons.Font,
-            FontSize = iconSize,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        Child = glyph;
         MouseLeftButtonDown += (_, e) => { pressed = true; CaptureMouse(); Press(true); e.Handled = true; };
         MouseLeftButtonUp += (_, e) =>
         {
@@ -146,26 +162,58 @@ public sealed class GlassButton : Border
         LostMouseCapture += (_, _) => { if (pressed) { pressed = false; Press(false); } };
     }
 
-    public bool IsGlass { get; set; }
-
-    public string Icon { get => glyph.Text; set => glyph.Text = value; }
-
-    public void ApplyLook(GlassLevel level, bool light, bool lite, bool isOn = false)
-    {
-        if (IsGlass) Glass.Apply(this, level, light, lite);
-        else if (level == GlassLevel.Mega) Glass.Apply(this, level, light, true);
-        else { Background = Brushes.Transparent; BorderThickness = new Thickness(0); Effect = null; }
-        if (isOn)
-        {
-            BorderBrush = new SolidColorBrush(Color.FromArgb(170, 255, 255, 255));
-            BorderThickness = new Thickness(1.5);
-        }
-    }
-
     private void Press(bool down)
     {
-        Glass.Animate(scale, ScaleTransform.ScaleXProperty, down ? 0.82 : 1, down ? 0.08 : 0.3, down ? null : Glass.Spring);
-        Glass.Animate(scale, ScaleTransform.ScaleYProperty, down ? 0.82 : 1, down ? 0.08 : 0.3, down ? null : Glass.Spring);
-        Glass.Animate(glyph, OpacityProperty, down ? 0.55 : 1, 0.12);
+        var ease = new ElasticEase { Oscillations = 1, Springiness = 4, EasingMode = EasingMode.EaseOut };
+        Glass.Animate(scale, ScaleTransform.ScaleXProperty, down ? 0.8 : 1, down ? 0.1 : 0.25, down ? null : ease);
+        Glass.Animate(scale, ScaleTransform.ScaleYProperty, down ? 0.8 : 1, down ? 0.1 : 0.25, down ? null : ease);
+        Glass.Animate(this, OpacityProperty, down ? 0.55 : 1, 0.12);
     }
+}
+
+/// 34 pt glass circle with a 13 pt semibold symbol (ToolbarButton in LockWidgetView.swift).
+public sealed class ToolbarButton : PressableButton
+{
+    private readonly Border glass = new() { Width = 34, Height = 34, CornerRadius = new CornerRadius(17) };
+    private readonly Border ring = new() { Width = 34, Height = 34, CornerRadius = new CornerRadius(17), BorderThickness = new Thickness(1), IsHitTestVisible = false };
+    private readonly Symbol symbol;
+
+    public ToolbarButton(string symbolName, string help)
+    {
+        symbol = new Symbol(symbolName, 13, 1.25);
+        var grid = new Grid();
+        glass.Child = symbol;
+        grid.Children.Add(glass);
+        grid.Children.Add(ring);
+        Child = grid;
+        ToolTip = help;
+    }
+
+    public string SymbolName { set => symbol.SymbolName = value; }
+
+    public void ApplyLook(GlassLevel level, bool lite, bool dark, bool isOn)
+    {
+        Glass.Apply(glass, level, lite, dark);
+        ring.BorderBrush = new SolidColorBrush(Color.FromArgb(isOn ? (byte)153 : (byte)0, 255, 255, 255));
+    }
+}
+
+/// Transport button: symbol in a (size × 1.6) frame; glass bubble only in Mega.
+public sealed class TransportButton : PressableButton
+{
+    private readonly Border glass = new();
+    private readonly Symbol symbol;
+
+    public TransportButton(string symbolName, double size)
+    {
+        symbol = new Symbol(symbolName, size, 1.2);
+        glass.Width = glass.Height = size * 1.6;
+        glass.CornerRadius = new CornerRadius(size * 0.8);
+        glass.Child = symbol;
+        Child = glass;
+    }
+
+    public string SymbolName { set => symbol.SymbolName = value; }
+
+    public void ApplyLook(GlassLevel level, bool lite, bool dark) => Glass.Apply(glass, level, lite, dark, onlyInMega: true);
 }

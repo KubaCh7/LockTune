@@ -34,7 +34,7 @@ public sealed class Updater
     public Updater(AppSettings settings)
     {
         this.settings = settings;
-        timer.Tick += (_, _) => { if (settings.AutoUpdate) CheckNow(false); };
+        timer.Tick += (_, _) => { if (settings.AutoCheckUpdates) CheckNow(false); };
     }
 
     private static HttpClient CreateClient()
@@ -48,7 +48,7 @@ public sealed class Updater
     {
         CleanUpOldVersion();
         timer.Start();
-        if (!settings.AutoUpdate) return;
+        if (!settings.AutoCheckUpdates) return;
         var first = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
         first.Tick += (_, _) => { first.Stop(); CheckNow(false); };
         first.Start();

@@ -84,7 +84,7 @@ public sealed class LockScreenController
     private readonly DispatcherTimer cursorTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private LockScreenView? view;
     private OverlayWindow? main;
-    private readonly List<(OverlayWindow Window, BackgroundView Background)> extras = new();
+    private readonly List<(OverlayWindow Window, LockScreenView View)> extras = new();
     private DateTime shownAt;
     private DateTime lastMouseMove;
     private Point lastMousePosition;
@@ -94,8 +94,8 @@ public sealed class LockScreenController
 
     public bool IsVisible { get; private set; }
     public Presentation Presentation { get; private set; }
-    /// The lock screen is up and leaving it requires the Windows password.
-    public bool IsSecure => IsVisible && Presentation == Presentation.Lock && settings.RequirePassword;
+    /// The lock screen is up; leaving it locks Windows (PIN / password).
+    public bool IsSecure => IsVisible && Presentation == Presentation.Lock;
 
     public event Action? VisibilityChanged;
 
@@ -108,22 +108,14 @@ public sealed class LockScreenController
         cursorTimer.Tick += (_, _) => UpdateCursor();
         keyboardGuard.Blocked += () => { if (IsVisible) Activate(); };
         media.PlaybackChanged += UpdateDisplayAwake;
-        media.ArtworkChanged += () =>
-        {
-            foreach (var extra in extras) extra.Background.Update(media, settings.BackgroundStyle, settings.LiteMode);
-        };
         settings.PropertyChanged += OnSettingsChanged;
     }
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(AppSettings.BackgroundStyle) or nameof(AppSettings.LiteMode))
-            foreach (var extra in extras) extra.Background.Update(media, settings.BackgroundStyle, settings.LiteMode);
-        if (e.PropertyName == nameof(AppSettings.AwakeMinutes)) UpdateDisplayAwake();
-        if (e.PropertyName == nameof(AppSettings.RequirePassword) && IsVisible)
-        {
-            if (IsSecure) keyboardGuard.Start(); else keyboardGuard.Stop();
-        }
+        if (e.PropertyName == nameof(AppSettings.AwakeDurationIndex)) UpdateDisplayAwake();
+        if (e.PropertyName == nameof(AppSettings.AllDisplays))
+            foreach (var extra in extras) extra.View.WidgetHidden = !settings.AllDisplays;
     }
 
     // MARK: Show / hide
@@ -147,21 +139,29 @@ public sealed class LockScreenController
         view!.ResetOpacity();
         SetPresentation(presentation);
 
-        // The other monitors get the artwork background.
+        // The other monitors: the widget too ("Show on all displays"), or just the backdrop.
         int index = 0;
         foreach (var screen in screens)
         {
             if (screen.DeviceName == primary.DeviceName) continue;
             if (index >= extras.Count)
             {
-                var background = new BackgroundView();
-                extras.Add((new OverlayWindow(background), background));
+                var extraView = new LockScreenView(media, lyrics, settings);
+                extraView.UnlockRequested += Unlock;
+                extraView.CloseRequested += () => Hide();
+                var extraWindow = new OverlayWindow(extraView);
+                extraWindow.PreviewKeyDown += OnKey;
+                extras.Add((extraWindow, extraView));
             }
-            var (window, bg) = extras[index++];
-            bg.Update(media, settings.BackgroundStyle, settings.LiteMode, force: true);
+            var (window, extra) = extras[index++];
+            extra.ResetOpacity();
+            extra.Presentation = presentation;
+            extra.WidgetHidden = !settings.AllDisplays;
+            window.Underlay.Source = settings.LiteMode ? null : Capture(screen);
             window.Cover(screen);
             window.Show();
             window.Reassert();
+            extra.PlayEntrance();
         }
         for (int i = index; i < extras.Count; i++) extras[i].Window.Hide();
 
@@ -189,6 +189,7 @@ public sealed class LockScreenController
     {
         Presentation = presentation;
         if (view != null) view.Presentation = presentation;
+        foreach (var extra in extras) extra.View.Presentation = presentation;
         if (IsSecure) keyboardGuard.Start(); else keyboardGuard.Stop();
     }
 
@@ -213,20 +214,22 @@ public sealed class LockScreenController
             view?.Stop();
             main?.Hide();
             if (main != null) main.Underlay.Source = null;
-            foreach (var extra in extras) { extra.Window.Hide(); extra.Window.Underlay.Source = null; }
+            foreach (var extra in extras) { extra.View.Stop(); extra.Window.Hide(); extra.Window.Underlay.Source = null; }
         }
-        if (animated && view != null) view.PlayExit(Finish);
+        if (animated && view != null)
+        {
+            foreach (var extra in extras) if (extra.Window.IsVisible) extra.View.PlayExit(() => { });
+            view.PlayExit(Finish);
+        }
         else Finish();
         VisibilityChanged?.Invoke();
     }
 
-    /// Unlock button / Enter / swipe up on the lock screen.
+    /// Enter / click on the lock screen: lock Windows for real (PIN / password).
     private void Unlock()
     {
-        if (Presentation == Presentation.Lock && settings.RequirePassword)
-            LockWindows();
-        else
-            Hide();
+        if (Presentation == Presentation.Lock) LockWindows();
+        else Hide();
     }
 
     /// Locks Windows for real; the LockTune windows go away once it's locked.
@@ -259,12 +262,7 @@ public sealed class LockScreenController
         view.UnlockRequested += Unlock;
         view.CloseRequested += () => Hide();
         main = new OverlayWindow(view);
-        main.PreviewKeyDown += (_, e) =>
-        {
-            var key = e.Key == Key.System ? e.SystemKey : e.Key;
-            if (key == Key.Escape && Presentation == Presentation.Preview) { Hide(); e.Handled = true; return; }
-            if (view.HandleKey(key)) e.Handled = true;
-        };
+        main.PreviewKeyDown += OnKey;
         main.MouseMove += (_, e) =>
         {
             var p = e.GetPosition(main);
@@ -282,7 +280,19 @@ public sealed class LockScreenController
         };
     }
 
-    private void OnRendering(object? sender, EventArgs e) => view?.Tick();
+    private void OnKey(object sender, KeyEventArgs e)
+    {
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key == Key.Escape && Presentation == Presentation.Preview) { Hide(); e.Handled = true; return; }
+        if (view != null && view.HandleKey(key)) e.Handled = true;
+    }
+
+    private void OnRendering(object? sender, EventArgs e)
+    {
+        view?.Tick();
+        foreach (var extra in extras)
+            if (extra.Window.IsVisible && !extra.View.WidgetHidden) extra.View.Tick();
+    }
 
     private void Activate()
     {
@@ -317,15 +327,16 @@ public sealed class LockScreenController
         LockWindows();
     }
 
+    /// Keeps the display on while the lock screen is up and music plays.
     private void UpdateDisplayAwake()
     {
-        int minutes = settings.AwakeMinutes;
-        if (!IsVisible || minutes == 0 || !media.IsPlaying)
+        double seconds = settings.AwakeDuration;
+        if (!IsSecure || seconds <= 0 || !media.IsPlaying)
         {
             displayAwake.Release();
             return;
         }
-        displayAwake.Hold(minutes < 0 ? null : shownAt.AddMinutes(minutes));
+        displayAwake.Hold(double.IsInfinity(seconds) ? null : shownAt.AddSeconds(seconds));
     }
 
     private void UpdateCursor()

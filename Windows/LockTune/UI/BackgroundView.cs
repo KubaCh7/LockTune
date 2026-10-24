@@ -10,9 +10,9 @@ using LockTune.Media;
 
 namespace LockTune.UI;
 
-/// Full-screen background built from the artwork: a blurred, saturated,
-/// slowly drifting version (Apple Music style), the artwork itself, or the
-/// blurred Windows wallpaper — tinted with the artwork's dominant colours.
+/// Full-screen background built from the artwork (ArtworkBackgroundView.swift):
+/// a blurred, saturated, slowly drifting version (Apple Music style) or the
+/// artwork as a wallpaper — tinted with the artwork's dominant colours.
 public sealed class BackgroundView : Grid
 {
     private readonly Rectangle baseGradient = new();
@@ -21,8 +21,6 @@ public sealed class BackgroundView : Grid
     private readonly Rectangle scrim = new() { IsHitTestVisible = false };
     private readonly Rectangle vignette = new() { IsHitTestVisible = false };
     private (int Token, BackgroundStyle Style, bool Lite) shown = (-1, BackgroundStyle.Blurred, false);
-    private static BitmapSource? wallpaper;
-    private static DateTime wallpaperLoaded;
 
     public BackgroundView()
     {
@@ -48,10 +46,10 @@ public sealed class BackgroundView : Grid
         tintBrush.GradientStops.Add(new GradientStop(Colors.Transparent, 0.5));
         tintBrush.GradientStops.Add(new GradientStop(ArtworkPalette.WithAlpha(palette.Secondary, 0.4), 1));
         tint.Fill = Glass.Frozen(tintBrush);
-        tint.Visibility = style == BackgroundStyle.Wallpaper ? Visibility.Collapsed : Visibility.Visible;
-        bool light = palette.IsLight && style != BackgroundStyle.Wallpaper;
+        bool light = palette.IsLight;
+        // Legibility scrim + vignette.
         scrim.Fill = Glass.Frozen(new SolidColorBrush(light ? Color.FromArgb(15, 255, 255, 255)
-                                                            : Color.FromArgb(style == BackgroundStyle.Blurred ? (byte)46 : (byte)70, 0, 0, 0)));
+                                                            : Color.FromArgb(style == BackgroundStyle.Artwork ? (byte)66 : (byte)46, 0, 0, 0)));
         var vignetteBrush = new RadialGradientBrush { GradientOrigin = new Point(0.5, 0.5), RadiusX = 0.75, RadiusY = 0.75 };
         vignetteBrush.GradientStops.Add(new GradientStop(Colors.Transparent, 0.45));
         vignetteBrush.GradientStops.Add(new GradientStop(Color.FromArgb(light ? (byte)20 : (byte)80, 0, 0, 0), 1));
@@ -70,13 +68,6 @@ public sealed class BackgroundView : Grid
         {
             case BackgroundStyle.Artwork when media.Artwork != null:
                 return new Image { Source = media.Artwork, Stretch = Stretch.UniformToFill };
-            case BackgroundStyle.Wallpaper:
-                if (wallpaper == null || DateTime.UtcNow - wallpaperLoaded > TimeSpan.FromMinutes(2))
-                {
-                    wallpaper = ArtworkAnalyzer.BlurredWallpaper() ?? wallpaper;
-                    wallpaperLoaded = DateTime.UtcNow;
-                }
-                return wallpaper == null ? null : Smooth(new Image { Source = wallpaper, Stretch = Stretch.UniformToFill });
             default:
                 if (media.BlurredArtwork == null) return null;
                 return lite ? Smooth(new Image { Source = media.BlurredArtwork, Stretch = Stretch.UniformToFill })

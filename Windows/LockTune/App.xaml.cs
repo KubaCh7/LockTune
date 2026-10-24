@@ -60,7 +60,7 @@ public partial class App : Application
         ThreadPool.RegisterWaitForSingleObject(showEvent, (_, _) =>
             Dispatcher.BeginInvoke(() => coordinator?.OpenSettings()), null, Timeout.Infinite, false);
 
-        if (args.Contains("--preview")) coordinator.ShowPreview();
+        if (args.Contains("--preview")) coordinator.TogglePreview();
     }
 
     protected override void OnExit(ExitEventArgs e)

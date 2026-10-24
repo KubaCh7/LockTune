@@ -40,8 +40,11 @@ public sealed class MediaController
     public int ArtworkToken { get; private set; }
     public string? SourceAppId { get; private set; }
     public string? SourceName { get; private set; }
+    /// Icon of the player app (shown in the player card).
+    public BitmapSource? SourceIcon { get; private set; }
     public string Status { get; private set; } = "Starting…";
     public int SessionCount { get; private set; }
+    public bool SessionsAvailable => manager != null;
 
     public event Action? TrackChanged;
     public event Action? ArtworkChanged;
@@ -127,14 +130,14 @@ public sealed class MediaController
         return source switch
         {
             PreferredSource.Spotify => id.Contains("spotify", StringComparison.OrdinalIgnoreCase),
-            PreferredSource.AppleMusic => id.Contains("AppleMusic", StringComparison.OrdinalIgnoreCase) ||
+            PreferredSource.Music => id.Contains("AppleMusic", StringComparison.OrdinalIgnoreCase) ||
                                           id.Contains("AppleInc.", StringComparison.OrdinalIgnoreCase) ||
                                           id.Contains("iTunes", StringComparison.OrdinalIgnoreCase),
             _ => true,
         };
     }
 
-    private static bool IsMusicApp(GSession s) => Matches(s, PreferredSource.Spotify) || Matches(s, PreferredSource.AppleMusic);
+    private static bool IsMusicApp(GSession s) => Matches(s, PreferredSource.Spotify) || Matches(s, PreferredSource.Music);
 
     private static bool Playing(GSession s)
     {
@@ -149,7 +152,7 @@ public sealed class MediaController
         SessionCount = sessions.Count;
         if (sessions.Count == 0) return null;
 
-        if (settings.PreferredSource != PreferredSource.Auto)
+        if (settings.PreferredSource != PreferredSource.Automatic)
         {
             var preferred = sessions.Where(s => Matches(s, settings.PreferredSource)).ToList();
             if (preferred.Count > 0) return preferred.FirstOrDefault(Playing) ?? preferred[0];
@@ -168,7 +171,7 @@ public sealed class MediaController
         return manager.GetCurrentSession() ?? sessions[0];
     }
 
-    private void Refresh()
+    public void Refresh()
     {
         GSession? chosen;
         try { chosen = ChooseSession(); }
@@ -194,6 +197,7 @@ public sealed class MediaController
         session = next;
         SourceAppId = next?.SourceAppUserModelId;
         SourceName = FriendlyName(SourceAppId);
+        SourceIcon = Platform.AppIcons.For(SourceAppId);
 
         if (next == null)
         {
@@ -369,6 +373,34 @@ public sealed class MediaController
         return name.Split('.').Last();
     }
 
+    /// One line per media session, for Settings → Status → Diagnostics.
+    public System.Collections.Generic.List<(string Name, string Text)> Diagnostics()
+    {
+        var result = new System.Collections.Generic.List<(string, string)>();
+        if (manager == null) { result.Add(("Media sessions", Status)); return result; }
+        try
+        {
+            foreach (var s in manager.GetSessions())
+            {
+                var name = FriendlyName(s.SourceAppUserModelId) ?? "?";
+                string state;
+                try { state = s.GetPlaybackInfo()?.PlaybackStatus.ToString().ToLowerInvariant() ?? "?"; } catch { state = "?"; }
+                string time = "";
+                try
+                {
+                    var tl = s.GetTimelineProperties();
+                    time = $" · {UI.LockScreenView.Format(tl.Position.TotalSeconds)} / {UI.LockScreenView.Format((tl.EndTime - tl.StartTime).TotalSeconds)}";
+                }
+                catch { }
+                bool current = s.SourceAppUserModelId == session?.SourceAppUserModelId;
+                result.Add((name, $"{state}{time}{(current ? " · shown" : "")}\n{s.SourceAppUserModelId}"));
+            }
+        }
+        catch (Exception e) { result.Add(("Media sessions", e.Message)); }
+        if (result.Count == 0) result.Add(("Media sessions", "none — start a song in Spotify, Apple Music or a browser"));
+        return result;
+    }
+
     // MARK: Testing / previews
 
     internal void SetTestState(TrackInfo track, BitmapSource artwork, bool playing, double position)
@@ -377,6 +409,7 @@ public sealed class MediaController
         Track = track;
         IsPlaying = playing;
         SourceName = "Spotify";
+        SourceIcon = null;
         var analysis = ArtworkAnalyzer.Analyze(artwork);
         Artwork = artwork;
         BlurredArtwork = analysis.Blurred;

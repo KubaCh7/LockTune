@@ -1,6 +1,9 @@
 using System;
 using System.ComponentModel;
 using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Security.Principal;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -8,6 +11,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 using LockTune.Core;
 using LockTune.Lyrics;
@@ -17,65 +22,122 @@ namespace LockTune.UI;
 
 public enum Presentation { Lock, Preview }
 
-/// The LockTune lock screen: clock + date, the artwork (smaller while
-/// paused), glass player controls, synced lyrics and the toolbar on the left
-/// — on top of the blurred, drifting artwork.
+/// Date + big clock, iPhone lock-screen style (ClockView.swift).
+public sealed class ClockView : StackPanel
+{
+    private readonly TextBlock date = new() { HorizontalAlignment = HorizontalAlignment.Center, Opacity = 0.92 };
+    private readonly TextBlock time = new() { HorizontalAlignment = HorizontalAlignment.Center };
+
+    public ClockView()
+    {
+        HorizontalAlignment = HorizontalAlignment.Center;
+        IsHitTestVisible = false;
+        Children.Add(date);
+        Children.Add(time);
+        Effect = Glass.Shadow(0.12, 14, 2);
+        Refresh();
+    }
+
+    public void Apply(double size, FontFamily family, FontWeight weight)
+    {
+        date.FontFamily = time.FontFamily = family;
+        date.FontWeight = FontWeights.SemiBold;
+        date.FontSize = size * 0.15;
+        time.FontSize = size;
+        time.FontWeight = weight;
+        time.Margin = new Thickness(0, -size * 0.04 - size * 0.12, 0, 0);
+    }
+
+    public void Refresh()
+    {
+        var now = DateTime.Now;
+        var culture = CultureInfo.CurrentCulture;
+        // Like iOS: no AM/PM marker, no leading zero in 12-hour mode.
+        bool twelveHour = culture.DateTimeFormat.ShortTimePattern.Contains('h');
+        var t = now.ToString(twelveHour ? "h:mm" : "H:mm", culture);
+        if (time.Text != t) time.Text = t;
+        // "Mon Oct 19" (or "pon. 19 paź" — day before month where that's the custom).
+        bool dayFirst = culture.DateTimeFormat.MonthDayPattern.TrimStart().StartsWith("d");
+        var d = now.ToString(dayFirst ? "ddd d MMM" : "ddd MMM d", culture).Replace(",", "");
+        if (date.Text != d) date.Text = d;
+    }
+}
+
+/// The lock-screen widget (LockWidgetView.swift): artwork + glass controls,
+/// lyrics on the right/left/centre when enabled, and a small toolbar on the
+/// left. With "artwork wallpaper" on, the blurred artwork and a clock fill
+/// the screen; otherwise it floats over your normal wallpaper, above your
+/// name, like on the Mac lock screen.
 public sealed class LockScreenView : Grid
 {
     private readonly MediaController media;
     private readonly LyricsController lyrics;
     private readonly AppSettings settings;
 
+    // Plain mode: your wallpaper + clock + name, like the normal lock screen.
+    private readonly Grid plainBackdrop = new();
+    private readonly Image wallpaperImage = new() { Stretch = Stretch.UniformToFill };
+    private readonly ClockView systemClock = new();
+    private readonly StackPanel account = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Cursor = Cursors.Hand };
+    // Wallpaper mode.
+    private readonly Grid artworkBackdrop = new();
     private readonly BackgroundView background = new();
     private readonly ScaleTransform backgroundScale = new(1, 1);
-    private readonly StackPanel clock = new() { HorizontalAlignment = HorizontalAlignment.Center, IsHitTestVisible = false };
-    private readonly TextBlock dateText = new() { HorizontalAlignment = HorizontalAlignment.Center };
-    private readonly TextBlock timeText = new() { HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly BlurEffect backgroundBlur = new() { Radius = 0 };
+    private readonly ClockView clock = new();
+    private readonly TextBlock hint = new() { FontSize = 12, FontWeight = FontWeights.Medium, Opacity = 0.6, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 18), Cursor = Cursors.Hand };
+
+    // The widget.
     private readonly Canvas content = new();
     private readonly TranslateTransform contentOffset = new();
+    private readonly ScaleTransform contentScale = new(1, 1);
     private readonly Border artworkFrame = new();
-    private readonly Border artwork = new() { ClipToBounds = true };
-    private readonly TextBlock artworkPlaceholder = new() { Text = Icons.Music, FontFamily = Icons.Font, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.6 };
+    private readonly Grid artworkClip = new() { ClipToBounds = true };
+    private readonly Border artworkStroke = new() { BorderThickness = new Thickness(0.5), IsHitTestVisible = false };
+    private readonly Grid artworkImages = new();
+    private readonly Grid artworkPlaceholder = new();
     private readonly ScaleTransform artworkScale = new(1, 1);
-    private readonly Border controls = new() { CornerRadius = new CornerRadius(24), Padding = new Thickness(18, 14, 18, 12) };
-    private readonly TextBlock titleText = new() { FontSize = 15, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly Border controls = new() { CornerRadius = new CornerRadius(24), Padding = new Thickness(18, 14, 18, 14) };
+    private readonly TextBlock titleText = new() { FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBlock artistText = new() { FontSize = 13, Opacity = 0.65, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Center };
-    private readonly Grid progress = new() { Height = 16, Background = Brushes.Transparent, Cursor = Cursors.Hand };
-    private readonly Border progressTrack = new() { Height = 5, CornerRadius = new CornerRadius(3), VerticalAlignment = VerticalAlignment.Center };
-    private readonly Border progressFill = new() { Height = 5, CornerRadius = new CornerRadius(3), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock elapsedText = new() { FontSize = 11, Opacity = 0.6 };
-    private readonly TextBlock remainingText = new() { FontSize = 11, Opacity = 0.6, HorizontalAlignment = HorizontalAlignment.Right };
-    private readonly TextBlock sourceText = new() { FontSize = 11, Opacity = 0.55, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-    private readonly GlassButton previousButton = new(Icons.Previous, 46, 20, "Previous", glass: false);
-    private readonly GlassButton playButton = new(Icons.Pause, 56, 28, "Play / Pause (Space)", glass: false);
-    private readonly GlassButton nextButton = new(Icons.Next, 46, 20, "Next", glass: false);
-    private readonly GlassButton lyricsCardButton = new(Icons.Lyrics, 34, 16, "Lyrics (L)", glass: false);
+    private readonly Grid progress = new() { Height = 14, Background = Brushes.Transparent, Cursor = Cursors.Hand };
+    private readonly Border progressTrack = new() { Height = 5, CornerRadius = new CornerRadius(2.5), VerticalAlignment = VerticalAlignment.Center };
+    private readonly Border progressFill = new() { Height = 5, CornerRadius = new CornerRadius(2.5), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock elapsedText = new() { FontSize = 11, FontWeight = FontWeights.Medium, Opacity = 0.6 };
+    private readonly TextBlock remainingText = new() { FontSize = 11, FontWeight = FontWeights.Medium, Opacity = 0.6, HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly Image sourceIcon = new() { Width = 18, Height = 18, Opacity = 0.85, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TransportButton previousButton = new("backward.fill", 20);
+    private readonly TransportButton playButton = new("pause.fill", 28);
+    private readonly TransportButton nextButton = new("forward.fill", 20);
+    private readonly PressableButton lyricsCardButton = new() { Width = 28, Height = 28, ToolTip = "Lyrics (L)" };
+    private readonly Symbol lyricsCardSymbol = new("quote.bubble", 15, 1.1);
     private readonly Border lyricsHost = new() { CornerRadius = new CornerRadius(30) };
     private readonly LyricsPanel lyricsPanel = new();
+
+    // Left toolbar.
     private readonly StackPanel toolbar = new() { Margin = new Thickness(26, 34, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
-    private readonly GlassButton lyricsButton = new(Icons.Lyrics, 36, 14, "Lyrics (L)");
-    private readonly GlassButton laterButton = new(Icons.Remove, 36, 13, "Lyrics later (this song)");
+    private readonly ToolbarButton lyricsButton = new("quote.bubble", "Lyrics");
+    private readonly ToolbarButton laterButton = new("minus", "Lyrics later (this song)");
     private readonly Border offsetLabel = new() { CornerRadius = new CornerRadius(10), Padding = new Thickness(6, 3, 6, 3), HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBlock offsetText = new() { FontSize = 10, FontWeight = FontWeights.Bold };
-    private readonly GlassButton earlierButton = new(Icons.Add, 36, 13, "Lyrics earlier (this song)");
-    private readonly GlassButton positionButton = new(Icons.DockRight, 36, 14, "Lyrics position");
-    private readonly GlassButton backgroundButton = new(Icons.Photo, 36, 14, "Background style");
-    private readonly GlassButton hideButton = new(Icons.View, 36, 14, "Hide widget");
-    private readonly GlassButton closeButton = new(Icons.Close, 36, 13, "Close preview (Esc)");
-    private readonly Border unlockPill = new() { CornerRadius = new CornerRadius(22), Padding = new Thickness(18, 9, 18, 9), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Cursor = Cursors.Hand };
-    private readonly TextBlock unlockIcon = new() { FontFamily = Icons.Font, FontSize = 14, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
-    private readonly TextBlock unlockText = new() { FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+    private readonly ToolbarButton earlierButton = new("plus", "Lyrics earlier (this song)");
+    private readonly ToolbarButton positionButton = new("rectangle.righthalf.inset.filled", "Lyrics position");
+    private readonly ToolbarButton wallpaperButton = new("photo", "Artwork wallpaper");
+    private readonly ToolbarButton hideButton = new("eye", "Hide widget");
+    private readonly ToolbarButton closeButton = new("xmark", "Close preview (Esc)");
 
     private readonly DispatcherTimer clockTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    /// Kept between appearances, so lyrics stay on if you turned them on.
     private bool showsLyrics;
-    private bool lyricsChosenAutomatically;
     private bool collapsed;
     private bool scrubbing;
+    private bool hoveringProgress;
     private double scrubFraction;
     private int shownSecond = -1;
     private DateTime lastTick = DateTime.UtcNow;
-    private Point? swipeStart;
+    private DateTime lastFrame = DateTime.MinValue;
     private Presentation presentation = Presentation.Preview;
+    private bool widgetHidden;
 
     public event Action? UnlockRequested;
     public event Action? CloseRequested;
@@ -83,28 +145,56 @@ public sealed class LockScreenView : Grid
     public Presentation Presentation
     {
         get => presentation;
-        set { presentation = value; UpdateChrome(); }
+        set { presentation = value; ApplyTheme(); Refresh(); }
     }
+
+    /// Extra monitors without "Show on all displays": just the backdrop.
+    public bool WidgetHidden
+    {
+        get => widgetHidden;
+        set { widgetHidden = value; Refresh(); }
+    }
+
+    private bool DrawsBackground => settings.LockWallpaper || presentation == Presentation.Preview;
+    private bool HasLyricsMode => showsLyrics && media.HasTrack;
+    private ArtworkPalette Palette => media.HasTrack ? media.Palette : ArtworkPalette.Fallback;
+    private bool IsLight => DrawsBackground && Palette.IsLight;
+    private Color TextColor => DrawsBackground ? Palette.TextColor : Colors.White;
 
     public LockScreenView(MediaController media, LyricsController lyrics, AppSettings settings)
     {
         this.media = media;
         this.lyrics = lyrics;
         this.settings = settings;
-        // Transparent: while it fades in, a screenshot of the desktop shows through.
         Background = Brushes.Transparent;
         ClipToBounds = true;
         TextOptions.SetTextFormattingMode(this, TextFormattingMode.Ideal);
-        TextOptions.SetTextRenderingMode(this, TextRenderingMode.Grayscale);
+        TextElement.SetFontFamily(this, Glass.SystemText);
 
+        // Plain backdrop.
+        plainBackdrop.Children.Add(new Rectangle { Fill = Brushes.Black });
+        RenderOptions.SetBitmapScalingMode(wallpaperImage, BitmapScalingMode.HighQuality);
+        plainBackdrop.Children.Add(wallpaperImage);
+        plainBackdrop.Children.Add(new Rectangle { Fill = new SolidColorBrush(Color.FromArgb(40, 0, 0, 0)) });
+        systemClock.VerticalAlignment = VerticalAlignment.Top;
+        TextElement.SetForeground(plainBackdrop, Brushes.White);
+        plainBackdrop.Children.Add(systemClock);
+        BuildAccount();
+        plainBackdrop.Children.Add(account);
+        Children.Add(plainBackdrop);
+
+        // Artwork wallpaper.
         background.RenderTransformOrigin = new Point(0.5, 0.5);
         background.RenderTransform = backgroundScale;
-        Children.Add(background);
+        background.Effect = backgroundBlur;
+        artworkBackdrop.Children.Add(background);
+        clock.VerticalAlignment = VerticalAlignment.Top;
+        artworkBackdrop.Children.Add(clock);
+        artworkBackdrop.Background = Brushes.Transparent;
+        artworkBackdrop.MouseLeftButtonUp += (_, _) => { if (presentation == Presentation.Preview) CloseRequested?.Invoke(); };
+        Children.Add(artworkBackdrop);
 
-        clock.Children.Add(dateText);
-        clock.Children.Add(timeText);
-        Children.Add(clock);
-
+        // Widget.
         BuildArtwork();
         BuildControls();
         lyricsHost.Child = lyricsPanel;
@@ -114,58 +204,118 @@ public sealed class LockScreenView : Grid
         content.Children.Add(lyricsHost);
         content.Children.Add(artworkFrame);
         content.Children.Add(controls);
-        content.RenderTransform = contentOffset;
+        var group = new TransformGroup();
+        group.Children.Add(contentScale);
+        group.Children.Add(contentOffset);
+        content.RenderTransform = group;
         Children.Add(content);
 
         BuildToolbar();
         Children.Add(toolbar);
-        BuildUnlockPill();
-        Children.Add(unlockPill);
+        hint.MouseLeftButtonUp += (_, e) => { Dismiss(); e.Handled = true; };
+        Children.Add(hint);
 
-        clockTimer.Tick += (_, _) => UpdateClock();
-        SizeChanged += (_, _) => { Relayout(false); UpdateClockSize(); };
-        MouseLeftButtonDown += (_, e) => { swipeStart = e.GetPosition(this); };
-        MouseMove += (_, e) =>
-        {
-            if (swipeStart is not { } start || e.LeftButton != MouseButtonState.Pressed) return;
-            if (start.Y - e.GetPosition(this).Y > 140) { swipeStart = null; Dismiss(); }
-        };
-        MouseLeftButtonUp += (_, _) => swipeStart = null;
+        clockTimer.Tick += (_, _) => { clock.Refresh(); systemClock.Refresh(); };
+        SizeChanged += (_, _) => { Relayout(false); ApplyClockSizes(); };
 
-        media.TrackChanged += OnTrackChanged;
-        media.ArtworkChanged += OnArtworkChanged;
+        media.TrackChanged += () => { UpdateTrack(); Relayout(true); };
+        media.ArtworkChanged += () => { ApplyTheme(); UpdateArtwork(true); };
         media.PlaybackChanged += OnPlaybackChanged;
-        lyrics.PropertyChanged += (_, _) => OnLyricsChanged();
+        lyrics.PropertyChanged += (_, _) => { lyricsPanel.SetContent(lyrics.State, lyrics.Content, lyrics.Revision); Refresh(); };
         settings.PropertyChanged += OnSettingsChanged;
 
+        lyricsPanel.SetContent(lyrics.State, lyrics.Content, lyrics.Revision);
         ApplyTheme();
         UpdateTrack();
-        UpdateClock();
-        OnLyricsChanged();
     }
 
     // MARK: Building
 
+    private void BuildAccount()
+    {
+        string name = Environment.UserName;
+        var avatar = new Grid { Width = 72, Height = 72, HorizontalAlignment = HorizontalAlignment.Center };
+        var picture = AccountPicture();
+        if (picture != null)
+            avatar.Children.Add(new Ellipse { Fill = new ImageBrush(picture) { Stretch = Stretch.UniformToFill } });
+        else
+        {
+            avatar.Children.Add(new Ellipse { Fill = new LinearGradientBrush(Color.FromRgb(150, 150, 158), Color.FromRgb(100, 100, 108), 90) });
+            avatar.Children.Add(new TextBlock
+            {
+                Text = string.Concat(name.Split(' ', '.', '_').Where(p => p.Length > 0).Take(2).Select(p => char.ToUpperInvariant(p[0]))),
+                FontSize = 28, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, FontFamily = Glass.Rounded,
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            });
+        }
+        account.Children.Add(avatar);
+        account.Children.Add(new TextBlock
+        {
+            Text = name, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, FontFamily = Glass.SystemText,
+            HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 6),
+        });
+        account.Children.Add(new TextBlock
+        {
+            Text = "Press Enter to unlock", FontSize = 13, Foreground = new SolidColorBrush(Color.FromArgb(170, 255, 255, 255)),
+            FontFamily = Glass.SystemText, HorizontalAlignment = HorizontalAlignment.Center,
+        });
+        account.MouseLeftButtonUp += (_, e) => { Dismiss(); e.Handled = true; };
+    }
+
+    /// The Windows account picture, if there is one.
+    private static BitmapSource? AccountPicture()
+    {
+        try
+        {
+            var sid = WindowsIdentity.GetCurrent().User?.Value;
+            if (sid == null) return null;
+            var folder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonDocuments), "..", "AccountPictures", sid);
+            if (!Directory.Exists(folder)) return null;
+            var file = Directory.GetFiles(folder).Where(f => f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                                                 .OrderByDescending(f => new FileInfo(f).Length).FirstOrDefault();
+            if (file == null) return null;
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.DecodePixelWidth = 144;
+            image.UriSource = new Uri(file);
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch (Exception) { return null; }
+    }
+
     private void BuildArtwork()
     {
-        artwork.Child = artworkPlaceholder;
-        artworkFrame.Child = artwork;
+        artworkPlaceholder.Background = new LinearGradientBrush(Color.FromArgb(64, 255, 255, 255), Color.FromArgb(20, 255, 255, 255), 45);
+        artworkPlaceholder.Children.Add(new Symbol("music.note", 30) { Opacity = 0.55, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+        artworkClip.Children.Add(artworkPlaceholder);
+        artworkClip.Children.Add(artworkImages);
+        var stack = new Grid();
+        stack.Children.Add(artworkClip);
+        stack.Children.Add(artworkStroke);
+        artworkStroke.BorderBrush = new SolidColorBrush(Color.FromArgb(26, 255, 255, 255));
+        artworkFrame.Child = stack;
         artworkFrame.RenderTransformOrigin = new Point(0.5, 0.5);
         artworkFrame.RenderTransform = artworkScale;
         artworkFrame.Cursor = Cursors.Hand;
-        artworkFrame.ToolTip = "Show lyrics";
         artworkFrame.MouseLeftButtonUp += (_, e) => { ToggleLyrics(); e.Handled = true; };
     }
 
     private void BuildControls()
     {
         var stack = new StackPanel();
-        stack.Children.Add(titleText);
-        stack.Children.Add(artistText);
-        progress.Margin = new Thickness(0, 10, 0, 0);
+        var titles = new StackPanel { HorizontalAlignment = HorizontalAlignment.Stretch };
+        titleText.Margin = new Thickness(0, 0, 0, 2);
+        titles.Children.Add(titleText);
+        titles.Children.Add(artistText);
+        stack.Children.Add(titles);
+
+        progress.Margin = new Thickness(0, 12, 0, 0);
         progress.Children.Add(progressTrack);
         progress.Children.Add(progressFill);
-        progress.MouseLeftButtonDown += (_, e) => { scrubbing = true; progress.CaptureMouse(); Scrub(e); e.Handled = true; };
+        progress.MouseLeftButtonDown += (_, e) => { scrubbing = true; progress.CaptureMouse(); Scrub(e); SetProgressActive(); e.Handled = true; };
         progress.MouseMove += (_, e) => { if (scrubbing) Scrub(e); };
         progress.MouseLeftButtonUp += (_, e) =>
         {
@@ -173,31 +323,36 @@ public sealed class LockScreenView : Grid
             scrubbing = false;
             progress.ReleaseMouseCapture();
             if (media.Duration > 0) media.Seek(scrubFraction * media.Duration);
+            SetProgressActive();
             e.Handled = true;
         };
-        progress.MouseEnter += (_, _) => SetProgressThickness(9);
-        progress.MouseLeave += (_, _) => { if (!scrubbing) SetProgressThickness(5); };
+        progress.MouseEnter += (_, _) => { hoveringProgress = true; SetProgressActive(); };
+        progress.MouseLeave += (_, _) => { hoveringProgress = false; SetProgressActive(); };
         stack.Children.Add(progress);
-
-        var times = new Grid { Margin = new Thickness(0, 3, 0, 0) };
+        var times = new Grid { Margin = new Thickness(0, 5, 0, 0) };
+        elapsedText.FontFamily = remainingText.FontFamily = Glass.Rounded;
+        Typography.SetNumeralAlignment(elapsedText, FontNumeralAlignment.Tabular);
+        Typography.SetNumeralAlignment(remainingText, FontNumeralAlignment.Tabular);
         times.Children.Add(elapsedText);
         times.Children.Add(remainingText);
         stack.Children.Add(times);
 
-        var buttons = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+        var buttons = new Grid { Margin = new Thickness(0, 12, 0, 0) };
+        buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
         buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        buttons.Children.Add(sourceText);
-        var transport = new StackPanel { Orientation = Orientation.Horizontal };
-        previousButton.Margin = new Thickness(0, 0, 18, 0);
-        nextButton.Margin = new Thickness(18, 0, 0, 0);
+        buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+        RenderOptions.SetBitmapScalingMode(sourceIcon, BitmapScalingMode.HighQuality);
+        sourceIcon.VerticalAlignment = VerticalAlignment.Center;
+        buttons.Children.Add(sourceIcon);
+        var transport = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        playButton.Margin = new Thickness(30, 0, 30, 0);
         transport.Children.Add(previousButton);
         transport.Children.Add(playButton);
         transport.Children.Add(nextButton);
         Grid.SetColumn(transport, 1);
         buttons.Children.Add(transport);
-        lyricsCardButton.HorizontalAlignment = HorizontalAlignment.Right;
+        lyricsCardButton.Child = lyricsCardSymbol;
+        lyricsCardButton.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(lyricsCardButton, 2);
         buttons.Children.Add(lyricsCardButton);
         stack.Children.Add(buttons);
@@ -212,7 +367,8 @@ public sealed class LockScreenView : Grid
     private void BuildToolbar()
     {
         offsetLabel.Child = offsetText;
-        foreach (var element in new FrameworkElement[] { lyricsButton, laterButton, offsetLabel, earlierButton, positionButton, backgroundButton, hideButton, closeButton })
+        offsetText.FontFamily = Glass.Rounded;
+        foreach (var element in new FrameworkElement[] { lyricsButton, laterButton, offsetLabel, earlierButton, positionButton, wallpaperButton, hideButton, closeButton })
         {
             element.Margin = new Thickness(0, 0, 0, 10);
             toolbar.Children.Add(element);
@@ -229,73 +385,62 @@ public sealed class LockScreenView : Grid
                 _ => LyricsPosition.Right,
             };
         };
-        backgroundButton.Click += () =>
-        {
-            settings.BackgroundStyle = settings.BackgroundStyle switch
-            {
-                BackgroundStyle.Blurred => BackgroundStyle.Artwork,
-                BackgroundStyle.Artwork => BackgroundStyle.Wallpaper,
-                _ => BackgroundStyle.Blurred,
-            };
-        };
-        hideButton.Click += () => { collapsed = !collapsed; ApplyCollapsed(); UpdateChrome(); };
-        closeButton.Click += Dismiss;
-    }
-
-    private void BuildUnlockPill()
-    {
-        var row = new StackPanel { Orientation = Orientation.Horizontal };
-        row.Children.Add(unlockIcon);
-        row.Children.Add(unlockText);
-        unlockPill.Child = row;
-        unlockPill.Margin = new Thickness(0, 0, 0, 28);
-        unlockPill.MouseLeftButtonUp += (_, e) => { Dismiss(); e.Handled = true; };
+        wallpaperButton.Click += () => settings.LockWallpaper = !settings.LockWallpaper;
+        hideButton.Click += () => { collapsed = !collapsed; ApplyCollapsed(true); Refresh(); };
+        closeButton.Click += () => CloseRequested?.Invoke();
     }
 
     // MARK: Public API
 
-    /// Entrance: the background zooms in out of a blur, the widget rises into place.
+    /// Entrance: the artwork wallpaper zooms in out of a blur, the widget rises into place.
     public void PlayEntrance()
     {
         lyrics.ReloadIfNeeded();
         collapsed = false;
         ApplyCollapsed(false);
-        lyricsChosenAutomatically = false;
-        bool hasLyrics = lyrics.State is LyricsState.Loaded or LyricsState.Loading;
-        SetShowsLyrics(settings.LyricsEnabled && settings.OpenWithLyrics && hasLyrics && media.HasTrack, animated: false);
-        lyricsChosenAutomatically = showsLyrics;
+        LoadWallpaper();
+        ApplyTheme();
         Relayout(false);
-        lyricsPanel.Reveal();
+        if (showsLyrics) lyricsPanel.Reveal();
         clockTimer.Start();
-        UpdateClock();
+        clock.Refresh();
+        systemClock.Refresh();
         lastTick = DateTime.UtcNow;
+        Refresh();
 
         bool lite = settings.LiteMode;
-        background.Opacity = 0;
-        Glass.Animate(background, OpacityProperty, 1, lite ? 0.25 : 0.55);
+        artworkBackdrop.Opacity = 0;
+        Glass.Animate(artworkBackdrop, OpacityProperty, DrawsBackground ? 1 : 0, 0.55);
         if (!lite)
         {
             backgroundScale.ScaleX = backgroundScale.ScaleY = 1.12;
-            Glass.Animate(backgroundScale, ScaleTransform.ScaleXProperty, 1, 0.7);
-            Glass.Animate(backgroundScale, ScaleTransform.ScaleYProperty, 1, 0.7);
+            Glass.Animate(backgroundScale, ScaleTransform.ScaleXProperty, 1, 0.55);
+            Glass.Animate(backgroundScale, ScaleTransform.ScaleYProperty, 1, 0.55);
+            backgroundBlur.Radius = 80;
+            Glass.Animate(backgroundBlur, BlurEffect.RadiusProperty, 0, 0.55);
         }
-        clock.Opacity = 0;
-        Glass.Animate(clock, OpacityProperty, 1, 0.5, delay: 0.1);
+        plainBackdrop.Opacity = 0;
+        Glass.Animate(plainBackdrop, OpacityProperty, 1, 0.4);
+        // The widget rises into place with a spring.
         content.Opacity = 0;
-        Glass.Animate(content, OpacityProperty, 1, 0.45, delay: 0.08);
-        contentOffset.Y = lite ? 0 : 70;
-        if (!lite) Glass.Animate(contentOffset, TranslateTransform.YProperty, 0, 0.7, Glass.Spring, 0.08);
+        Glass.Animate(content, OpacityProperty, 1, 0.4, delay: 0.08);
+        contentOffset.Y = 70;
+        contentScale.ScaleX = contentScale.ScaleY = 0.94;
+        Glass.Animate(contentOffset, TranslateTransform.YProperty, 0, 0.62, Glass.Spring, 0.08);
+        Glass.Animate(contentScale, ScaleTransform.ScaleXProperty, 1, 0.62, Glass.Spring, 0.08);
+        Glass.Animate(contentScale, ScaleTransform.ScaleYProperty, 1, 0.62, Glass.Spring, 0.08);
         toolbar.Opacity = 0;
-        Glass.Animate(toolbar, OpacityProperty, 1, 0.4, delay: 0.25);
-        unlockPill.Opacity = 0;
-        Glass.Animate(unlockPill, OpacityProperty, 1, 0.4, delay: 0.35);
+        Glass.Animate(toolbar, OpacityProperty, 1, 0.4, delay: 0.2);
+        hint.Opacity = 0;
+        Glass.Animate(hint, OpacityProperty, 0.6, 0.4, delay: 0.3);
     }
 
-    /// Exit (preview): everything fades away. Calls `done` when finished.
+    /// Exit: the widget drops away, everything fades. Calls `done` when finished.
     public void PlayExit(Action done)
     {
         clockTimer.Stop();
-        var fade = new DoubleAnimation(0, TimeSpan.FromSeconds(settings.LiteMode ? 0.12 : 0.25));
+        Glass.Animate(contentOffset, TranslateTransform.YProperty, 70, 0.22, new QuadraticEase { EasingMode = EasingMode.EaseIn });
+        var fade = new DoubleAnimation(0, TimeSpan.FromSeconds(0.3));
         fade.Completed += (_, _) => done();
         BeginAnimation(OpacityProperty, fade);
     }
@@ -306,7 +451,10 @@ public sealed class LockScreenView : Grid
         Opacity = 1;
     }
 
-    public void Stop() => clockTimer.Stop();
+    public void Stop()
+    {
+        clockTimer.Stop();
+    }
 
     /// Keyboard shortcuts while the lock screen is up. Returns true if handled.
     public bool HandleKey(Key key)
@@ -326,12 +474,6 @@ public sealed class LockScreenView : Grid
             case Key.L:
                 ToggleLyrics();
                 return true;
-            case Key.Up:
-                lyrics.Nudge(LyricsController.OffsetStep);
-                return true;
-            case Key.Down:
-                lyrics.Nudge(-LyricsController.OffsetStep);
-                return true;
             case Key.Enter:
             case Key.Escape:
                 Dismiss();
@@ -344,28 +486,42 @@ public sealed class LockScreenView : Grid
     /// Final state without animations (self-test snapshots).
     internal void ShowStatic(bool withLyrics)
     {
-        SetShowsLyrics(withLyrics && media.HasTrack, animated: false);
-        foreach (var element in new UIElement[] { background, clock, content, toolbar, unlockPill })
-        {
+        showsLyrics = withLyrics;
+        LoadWallpaper();
+        lyricsHost.BeginAnimation(OpacityProperty, null);
+        lyricsHost.Opacity = HasLyricsMode ? 1 : 0;
+        lyricsHost.IsHitTestVisible = HasLyricsMode;
+        foreach (var element in new UIElement[] { plainBackdrop, artworkBackdrop, content, toolbar, hint })
             element.BeginAnimation(OpacityProperty, null);
-            element.Opacity = 1;
+        plainBackdrop.Opacity = 1;
+        content.Opacity = toolbar.Opacity = 1;
+        hint.Opacity = 0.6;
+        artworkBackdrop.Opacity = DrawsBackground ? 1 : 0;
+        backgroundBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+        backgroundBlur.Radius = 0;
+        foreach (var p in new[] { ScaleTransform.ScaleXProperty, ScaleTransform.ScaleYProperty })
+        {
+            backgroundScale.BeginAnimation(p, null);
+            contentScale.BeginAnimation(p, null);
+            artworkScale.BeginAnimation(p, null);
         }
-        backgroundScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        backgroundScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         backgroundScale.ScaleX = backgroundScale.ScaleY = 1;
+        contentScale.ScaleX = contentScale.ScaleY = 1;
+        artworkScale.ScaleX = artworkScale.ScaleY = media.IsPlaying ? 1 : 0.84;
         contentOffset.BeginAnimation(TranslateTransform.YProperty, null);
         contentOffset.Y = 0;
-        artworkScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        artworkScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-        artworkScale.ScaleX = artworkScale.ScaleY = media.IsPlaying ? 1 : 0.86;
-        UpdateClock();
+        ApplyTheme();
+        Refresh();
+        Relayout(false);
     }
 
-    /// Per-frame update: progress bar, lyrics, play/pause icon.
+    /// Per-frame update: progress bar and lyrics (throttled to the chosen fps).
     /// `step` overrides the frame time (self-test).
     public void Tick(double? step = null)
     {
         var now = DateTime.UtcNow;
+        if (step == null && (now - lastFrame).TotalSeconds < settings.FrameInterval * 0.9) return;
+        lastFrame = now;
         double dt = step ?? Math.Clamp((now - lastTick).TotalSeconds, 0, 0.1);
         lastTick = now;
         double position = media.Position(now);
@@ -373,16 +529,16 @@ public sealed class LockScreenView : Grid
 
         double fraction = scrubbing ? scrubFraction : duration > 0 ? Math.Clamp(position / duration, 0, 1) : 0;
         progressFill.Width = Math.Max(0, progress.ActualWidth * fraction);
-        double shown = scrubbing ? scrubFraction * duration : position;
-        int second = (int)shown;
+        double shownPosition = scrubbing ? scrubFraction * duration : position;
+        int second = (int)shownPosition;
         if (second != shownSecond)
         {
             shownSecond = second;
-            elapsedText.Text = Format(shown);
-            remainingText.Text = duration > 0 ? "-" + Format(Math.Max(0, duration - shown)) : "LIVE";
+            elapsedText.Text = Format(shownPosition);
+            remainingText.Text = duration > 0 ? "-" + Format(Math.Max(0, duration - shownPosition)) : "LIVE";
         }
 
-        if (showsLyrics)
+        if (HasLyricsMode)
             lyricsPanel.Tick(position + settings.LyricsLead + lyrics.SongOffset, dt, media.IsPlaying);
     }
 
@@ -394,36 +550,14 @@ public sealed class LockScreenView : Grid
 
     // MARK: Reacting to changes
 
-    private void OnTrackChanged()
-    {
-        UpdateTrack();
-        Relayout(true);
-    }
-
-    private void OnArtworkChanged()
-    {
-        ApplyTheme();
-        UpdateArtwork();
-    }
-
     private void OnPlaybackChanged()
     {
-        playButton.Icon = media.IsPlaying ? Icons.Pause : Icons.Play;
-        // Like the iPhone: the artwork shrinks a little while paused.
-        double target = media.IsPlaying ? 1 : 0.86;
+        playButton.SymbolName = media.IsPlaying ? "pause.fill" : "play.fill";
+        // The artwork shrinks a little while paused (Apple Music style).
+        double target = media.IsPlaying ? 1 : 0.84;
         Glass.Animate(artworkScale, ScaleTransform.ScaleXProperty, target, 0.55, Glass.Spring);
         Glass.Animate(artworkScale, ScaleTransform.ScaleYProperty, target, 0.55, Glass.Spring);
-    }
-
-    private void OnLyricsChanged()
-    {
-        lyricsPanel.SetContent(lyrics.State, lyrics.Content, lyrics.Revision);
-        if (lyricsChosenAutomatically && showsLyrics && lyrics.State is LyricsState.NotFound or LyricsState.Failed or LyricsState.Idle)
-        {
-            lyricsChosenAutomatically = false;
-            SetShowsLyrics(false, animated: true);
-        }
-        UpdateChrome();
+        ApplyArtworkShadow();
     }
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
@@ -431,11 +565,20 @@ public sealed class LockScreenView : Grid
         switch (e.PropertyName)
         {
             case nameof(AppSettings.ArtworkScale):
-            case nameof(AppSettings.PlayerHeight):
+            case nameof(AppSettings.PlainArtworkScale):
+            case nameof(AppSettings.WidgetBottomInset):
+            case nameof(AppSettings.PlainBottomInset):
             case nameof(AppSettings.LyricsOffset):
+            case nameof(AppSettings.PlainLyricsOffset):
             case nameof(AppSettings.LyricsPosition):
                 Relayout(true);
-                UpdateChrome();
+                Refresh();
+                break;
+            case nameof(AppSettings.LockWallpaper):
+                ApplyTheme();
+                Relayout(true);
+                Refresh();
+                Glass.Animate(artworkBackdrop, OpacityProperty, DrawsBackground ? 1 : 0, 0.5);
                 break;
             case nameof(AppSettings.LyricsScale):
             case nameof(AppSettings.LyricsFont):
@@ -447,7 +590,7 @@ public sealed class LockScreenView : Grid
             case nameof(AppSettings.BackgroundStyle):
             case nameof(AppSettings.EffectiveWordByWord):
                 ApplyTheme();
-                UpdateChrome();
+                Refresh();
                 break;
         }
     }
@@ -456,150 +599,159 @@ public sealed class LockScreenView : Grid
 
     private void UpdateTrack()
     {
-        titleText.Text = media.Track?.Title ?? "Nothing playing";
-        artistText.Text = media.Track?.Artist ?? "Start a song in Spotify, Apple Music or your browser";
-        sourceText.Text = media.SourceName ?? "";
-        playButton.Icon = media.IsPlaying ? Icons.Pause : Icons.Play;
-        artworkScale.ScaleX = artworkScale.ScaleY = media.IsPlaying || !media.HasTrack ? 1 : 0.86;
+        titleText.Text = media.Track?.Title ?? "";
+        artistText.Text = media.Track?.Artist ?? "";
+        sourceIcon.Source = media.SourceIcon;
+        sourceIcon.ToolTip = media.SourceName != null ? $"Playing in {media.SourceName}" : null;
+        playButton.SymbolName = media.IsPlaying ? "pause.fill" : "play.fill";
+        artworkScale.ScaleX = artworkScale.ScaleY = media.IsPlaying || !media.HasTrack ? 1 : 0.84;
         shownSecond = -1;
-        UpdateArtwork();
-        UpdateChrome();
+        UpdateArtwork(false);
+        ApplyTheme();
+        Refresh();
     }
 
-    private void UpdateArtwork()
+    /// Cross-fades to the new artwork.
+    private void UpdateArtwork(bool animated)
     {
-        if (media.Artwork != null)
+        if (media.Artwork == null)
         {
-            var brush = new ImageBrush(media.Artwork) { Stretch = Stretch.UniformToFill };
-            RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.HighQuality);
-            artwork.Background = Glass.Frozen(brush);
-            artworkPlaceholder.Visibility = Visibility.Collapsed;
+            foreach (UIElement child in artworkImages.Children) Glass.Animate(child, OpacityProperty, 0, 0.6);
+            return;
         }
-        else
+        var image = new Image { Source = media.Artwork, Stretch = Stretch.UniformToFill };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+        if (!animated || artworkImages.Children.Count == 0)
         {
-            var palette = media.Palette;
-            artwork.Background = Glass.Frozen(new LinearGradientBrush(palette.Primary, palette.Secondary, 45));
-            artworkPlaceholder.Visibility = Visibility.Visible;
+            artworkImages.Children.Clear();
+            artworkImages.Children.Add(image);
+            return;
         }
+        image.Opacity = 0;
+        artworkImages.Children.Add(image);
+        var fade = new DoubleAnimation(1, TimeSpan.FromSeconds(0.6)) { EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } };
+        fade.Completed += (_, _) =>
+        {
+            while (artworkImages.Children.Count > 1) artworkImages.Children.RemoveAt(0);
+        };
+        image.BeginAnimation(OpacityProperty, fade);
     }
 
     private void ToggleLyrics()
     {
         if (!media.HasTrack) return;
-        lyricsChosenAutomatically = false;
-        SetShowsLyrics(!showsLyrics, animated: true);
+        showsLyrics = !showsLyrics;
+        collapsed = false;
+        ApplyCollapsed(true);
+        if (showsLyrics) lyricsPanel.Reveal();
+        Glass.Animate(lyricsHost, OpacityProperty, HasLyricsMode ? 1 : 0, 0.4);
+        lyricsHost.IsHitTestVisible = HasLyricsMode;
+        ApplyTheme();
+        Relayout(true);
+        Refresh();
     }
 
-    private void SetShowsLyrics(bool value, bool animated)
+    private void ApplyCollapsed(bool animated)
     {
-        showsLyrics = value;
-        lyricsHost.IsHitTestVisible = value;
-        if (value) lyricsPanel.Reveal();
-        if (animated) Glass.Animate(lyricsHost, OpacityProperty, value ? 1 : 0, 0.35);
-        else { lyricsHost.BeginAnimation(OpacityProperty, null); lyricsHost.Opacity = value ? 1 : 0; }
-        Relayout(animated);
-        UpdateChrome();
-    }
-
-    private void ApplyCollapsed(bool animated = true)
-    {
-        double target = collapsed ? 0 : 1;
+        double opacity = collapsed ? 0 : 1, scale = collapsed ? 0.92 : 1;
         content.IsHitTestVisible = !collapsed;
-        if (animated) Glass.Animate(content, OpacityProperty, target, 0.3);
-        else { content.BeginAnimation(OpacityProperty, null); content.Opacity = target; }
-    }
-
-    /// Toolbar, unlock pill and other state-dependent bits.
-    private void UpdateChrome()
-    {
-        var level = settings.GlassLevel;
-        bool light = IsLight, lite = settings.LiteMode;
-        lyricsButton.ApplyLook(level, light, lite, isOn: showsLyrics);
-        lyricsButton.IsEnabled = media.HasTrack;
-        lyricsButton.Opacity = media.HasTrack ? 1 : 0.45;
-        var lyricsExtras = showsLyrics ? Visibility.Visible : Visibility.Collapsed;
-        laterButton.Visibility = earlierButton.Visibility = positionButton.Visibility = lyricsExtras;
-        offsetLabel.Visibility = showsLyrics && Math.Abs(lyrics.SongOffset) > 0.001 ? Visibility.Visible : Visibility.Collapsed;
-        offsetText.Text = lyrics.SongOffset.ToString("+0.00;-0.00", CultureInfo.InvariantCulture) + " s";
-        Glass.Apply(offsetLabel, level, light, true);
-        laterButton.ApplyLook(level, light, lite);
-        earlierButton.ApplyLook(level, light, lite);
-        positionButton.ApplyLook(level, light, lite);
-        positionButton.Icon = settings.LyricsPosition switch
+        if (animated)
         {
-            LyricsPosition.Left => Icons.DockLeft,
-            LyricsPosition.Center => Icons.Center,
-            _ => Icons.DockRight,
-        };
-        positionButton.ToolTip = $"Lyrics position: {settings.LyricsPosition}";
-        backgroundButton.ApplyLook(level, light, lite, isOn: settings.BackgroundStyle != BackgroundStyle.Blurred);
-        backgroundButton.ToolTip = $"Background: {settings.BackgroundStyle}";
-        hideButton.ApplyLook(level, light, lite, isOn: collapsed);
-        hideButton.Icon = collapsed ? Icons.Hide : Icons.View;
-        hideButton.ToolTip = collapsed ? "Show widget" : "Hide widget";
-        closeButton.ApplyLook(level, light, lite);
-        closeButton.Visibility = presentation == Presentation.Preview ? Visibility.Visible : Visibility.Collapsed;
-        lyricsCardButton.Icon = Icons.Lyrics;
-        lyricsCardButton.Opacity = showsLyrics ? 1 : 0.7;
-
-        Glass.Apply(unlockPill, level, light, lite);
-        if (presentation == Presentation.Preview)
-        {
-            unlockIcon.Text = Icons.Close;
-            unlockText.Text = "Preview  ·  Esc or click here to close";
-        }
-        else if (settings.RequirePassword)
-        {
-            unlockIcon.Text = Icons.Lock;
-            unlockText.Text = "Click here, swipe up or press Enter to unlock";
+            Glass.Animate(content, OpacityProperty, opacity, 0.5);
+            Glass.Animate(contentScale, ScaleTransform.ScaleXProperty, scale, 0.5, Glass.Spring);
+            Glass.Animate(contentScale, ScaleTransform.ScaleYProperty, scale, 0.5, Glass.Spring);
         }
         else
         {
-            unlockIcon.Text = Icons.Unlock;
-            unlockText.Text = "Click here, swipe up or press Enter to close";
+            content.BeginAnimation(OpacityProperty, null);
+            content.Opacity = opacity;
         }
     }
 
-    private bool IsLight => settings.BackgroundStyle != BackgroundStyle.Wallpaper && media.HasTrack && media.Palette.IsLight;
+    private void LoadWallpaper()
+    {
+        wallpaperImage.Source = ArtworkAnalyzer.Wallpaper((int)Math.Max(ActualWidth, 1920));
+    }
+
+    /// Toolbar, hint and mode-dependent bits.
+    private void Refresh()
+    {
+        var level = settings.GlassLevel;
+        bool lite = settings.LiteMode, dark = !IsLight;
+        bool lyricsOn = HasLyricsMode;
+
+        lyricsButton.SymbolName = lyricsOn ? "quote.bubble.fill" : "quote.bubble";
+        lyricsButton.ApplyLook(level, lite, dark, lyricsOn);
+        lyricsButton.IsEnabled = media.HasTrack;
+        lyricsButton.Opacity = media.HasTrack ? 1 : 0.4;
+        var extras = lyricsOn ? Visibility.Visible : Visibility.Collapsed;
+        laterButton.Visibility = earlierButton.Visibility = positionButton.Visibility = extras;
+        offsetLabel.Visibility = lyricsOn && Math.Abs(lyrics.SongOffset) > 0.001 ? Visibility.Visible : Visibility.Collapsed;
+        offsetText.Text = lyrics.SongOffset.ToString("+0.00;-0.00", CultureInfo.InvariantCulture) + " s";
+        Glass.Apply(offsetLabel, level, lite, dark);
+        laterButton.ApplyLook(level, lite, dark, false);
+        earlierButton.ApplyLook(level, lite, dark, false);
+        positionButton.SymbolName = settings.LyricsPosition switch
+        {
+            LyricsPosition.Left => "rectangle.lefthalf.inset.filled",
+            LyricsPosition.Center => "rectangle.center.inset.filled",
+            _ => "rectangle.righthalf.inset.filled",
+        };
+        positionButton.ToolTip = $"Lyrics position: {Titles.Of(settings.LyricsPosition)}";
+        positionButton.ApplyLook(level, lite, dark, false);
+        wallpaperButton.SymbolName = settings.LockWallpaper ? "photo.fill" : "photo";
+        wallpaperButton.ApplyLook(level, lite, dark, settings.LockWallpaper);
+        hideButton.SymbolName = collapsed ? "eye.slash" : "eye";
+        hideButton.ToolTip = collapsed ? "Show widget" : "Hide widget";
+        hideButton.ApplyLook(level, lite, dark, collapsed);
+        closeButton.ApplyLook(level, lite, dark, false);
+        closeButton.Visibility = presentation == Presentation.Preview ? Visibility.Visible : Visibility.Collapsed;
+        lyricsCardSymbol.SymbolName = lyricsOn ? "quote.bubble.fill" : "quote.bubble";
+        artworkFrame.ToolTip = lyricsOn ? "Back to player" : "Show lyrics";
+
+        bool plain = !DrawsBackground;
+        account.Visibility = plain && !widgetHidden ? Visibility.Visible : Visibility.Collapsed;
+        hint.Text = presentation == Presentation.Preview
+            ? "Preview · click the background or press Esc to close"
+            : "Press Enter or click here to unlock";
+        hint.Visibility = plain || widgetHidden ? Visibility.Collapsed : Visibility.Visible;
+        artworkBackdrop.IsHitTestVisible = DrawsBackground;
+
+        content.Visibility = widgetHidden || !media.HasTrack ? Visibility.Hidden : Visibility.Visible;
+        toolbar.Visibility = widgetHidden ? Visibility.Collapsed : Visibility.Visible;
+    }
 
     /// Colours, fonts and glass from the artwork palette + settings.
     private void ApplyTheme()
     {
-        var palette = media.HasTrack ? media.Palette : ArtworkPalette.Fallback;
-        var textColor = settings.BackgroundStyle == BackgroundStyle.Wallpaper ? Colors.White : palette.TextColor;
-        var text = Glass.Frozen(new SolidColorBrush(textColor));
-        TextElement.SetForeground(this, text);
-        bool light = IsLight, lite = settings.LiteMode;
+        TextElement.SetForeground(this, Glass.Frozen(new SolidColorBrush(TextColor)));
+        bool lite = settings.LiteMode, dark = !IsLight;
         var level = settings.GlassLevel;
+        bool mega = level == GlassLevel.Mega && !lite;
 
-        background.Update(media, settings.BackgroundStyle, lite);
+        background.Update(media, HasLyricsMode ? BackgroundStyle.Blurred : settings.BackgroundStyle, lite);
+        ApplyClockSizes();
 
-        dateText.FontFamily = timeText.FontFamily = Glass.Family(settings.ClockFont);
-        dateText.FontWeight = FontWeights.SemiBold;
-        timeText.FontWeight = Glass.Weight(settings.ClockWeight);
-        clock.Effect = lite ? null : new DropShadowEffect { BlurRadius = 18, ShadowDepth = 2, Opacity = 0.18, Direction = 270 };
-        UpdateClockSize();
+        Glass.Apply(controls, level, lite, dark);
+        var primary = TextColor;
+        progressTrack.Background = new SolidColorBrush(Color.FromArgb(56, primary.R, primary.G, primary.B));
+        SetProgressActive();
+        previousButton.ApplyLook(level, lite, dark);
+        playButton.ApplyLook(level, lite, dark);
+        nextButton.ApplyLook(level, lite, dark);
 
-        Glass.Apply(controls, level, light, lite);
-        progressTrack.Background = Glass.Frozen(new SolidColorBrush(Color.FromArgb(56, textColor.R, textColor.G, textColor.B)));
-        progressFill.Background = Glass.Frozen(new SolidColorBrush(Color.FromArgb(220, textColor.R, textColor.G, textColor.B)));
-        foreach (var b in new[] { previousButton, playButton, nextButton, lyricsCardButton }) b.ApplyLook(level, light, lite);
-
-        bool mega = level == GlassLevel.Mega;
-        artworkFrame.Padding = new Thickness(mega ? 8 : 0);
-        if (mega) Glass.Apply(artworkFrame, level, light, lite);
-        else
-        {
-            artworkFrame.Background = Brushes.Transparent;
-            artworkFrame.BorderThickness = new Thickness(0);
-            artworkFrame.Effect = lite ? null : new DropShadowEffect { BlurRadius = 40, ShadowDepth = 12, Direction = 270, Opacity = 0.35 };
-        }
-        artwork.Effect = null;
-        if (mega) Glass.Apply(lyricsHost, level, light, lite);
-        else { lyricsHost.Background = Brushes.Transparent; lyricsHost.BorderThickness = new Thickness(0); lyricsHost.Effect = null; }
+        // Mega Liquid Glass: the artwork sits in a thin glass frame, lyrics on a glass panel.
+        double side = double.IsNaN(artworkFrame.Width) ? 300 : artworkFrame.Width;
+        artworkFrame.Padding = new Thickness(mega ? Math.Min(10, Math.Max(5, side * 0.025)) : 0);
+        Glass.Apply(artworkFrame, level, lite, dark, onlyInMega: true);
+        artworkFrame.CornerRadius = new CornerRadius(side * 0.09);
+        ApplyArtworkShadow();
+        Glass.Apply(lyricsHost, level, lite, dark, onlyInMega: true);
         lyricsHost.Padding = new Thickness(mega ? 14 : 0);
+        lyricsPanel.Effect = DrawsBackground || mega ? null : Glass.Shadow(0.45, 10, 0);
+        content.Effect = DrawsBackground || lite ? null : Glass.Shadow(0.35, 18, 6);
 
-        lyricsPanel.TextColor = textColor;
+        lyricsPanel.TextColor = TextColor;
         lyricsPanel.Lite = lite;
         lyricsPanel.WordByWord = settings.EffectiveWordByWord;
         lyricsPanel.TextScale = settings.LyricsScale;
@@ -607,102 +759,111 @@ public sealed class LockScreenView : Grid
         lyricsPanel.LyricsWeight = Glass.Weight(settings.LyricsWeight);
         lyricsPanel.ApplyTextColor();
         lyricsPanel.InvalidateLines();
-        UpdateChrome();
     }
 
-    // MARK: Clock
-
-    private void UpdateClock()
+    private void ApplyArtworkShadow()
     {
-        var now = DateTime.Now;
-        var culture = CultureInfo.CurrentCulture;
-        bool twelveHour = culture.DateTimeFormat.ShortTimePattern.Contains('h');
-        var time = now.ToString(twelveHour ? "h:mm" : "H:mm", culture);
-        if (timeText.Text != time) timeText.Text = time;
-        var date = culture.TextInfo.ToTitleCase(now.ToString("dddd, d MMMM", culture));
-        if (dateText.Text != date) dateText.Text = date;
+        if (settings.GlassLevel == GlassLevel.Mega && !settings.LiteMode) return; // the glass frame has its own
+        double side = double.IsNaN(artworkFrame.Width) ? 300 : artworkFrame.Width;
+        bool playing = media.IsPlaying;
+        artworkFrame.Effect = settings.LiteMode
+            ? Glass.Shadow(playing ? 0.42 : 0.25, 8, 4)
+            : Glass.Shadow(playing ? 0.42 : 0.25, side * (playing ? 0.09 : 0.05), side * (playing ? 0.05 : 0.025));
     }
 
-    private void UpdateClockSize()
+    private void ApplyClockSizes()
     {
         double h = ActualHeight > 0 ? ActualHeight : 1080;
         double size = Math.Min(h * 0.12, 150);
-        timeText.FontSize = size;
-        timeText.Margin = new Thickness(0, -size * 0.12, 0, 0);
-        dateText.FontSize = size * 0.15;
+        clock.Apply(size, Glass.Family(settings.ClockFont), Glass.Weight(settings.ClockWeight));
         clock.Margin = new Thickness(0, h * 0.06, 0, 0);
-        clock.VerticalAlignment = VerticalAlignment.Top;
+        // The "system" clock of plain mode (like the Mac lock screen's own).
+        systemClock.Apply(size, Glass.System, FontWeights.SemiBold);
+        systemClock.Margin = new Thickness(0, h * 0.06, 0, 0);
+        account.Margin = new Thickness(0, 0, 0, h * 0.07);
     }
 
-    // MARK: Layout
+    // MARK: Layout (same numbers as LockWidgetView.swift)
     //
-    // Three independent settings: artwork size, player height and lyrics
-    // position — "left = less / lower, right = more / higher".
+    // Three independent settings (per mode): artwork size, player height
+    // (bottom of artwork + controls) and lyrics position.
 
-    private const double ControlsHeight = 168;
+    private const double TopFraction = 0.22;
+    private const double LyricsHeightFraction = 0.44;
+    private const double ControlsHeight = 150;
 
     private void Relayout(bool animated)
     {
         double w = ActualWidth, h = ActualHeight;
         if (w <= 0 || h <= 0) return;
-        double top = h * 0.25;
-        double bottom = h * (0.90 - 0.30 * settings.PlayerHeight);
-        double limit = h - 86; // keep clear of the unlock pill
-        double lyricsTop = h * (0.20 + 0.16 * settings.LyricsOffset);
-        double lyricsHeight = Math.Min(h * 0.6, limit - lyricsTop);
-        double scale = settings.ArtworkScale;
+        double top = h * TopFraction;
+        double widgetBottom = Math.Max(h * (1 - settings.ActiveBottomInset), top + h * 0.25);
+        double lyricsTop = Math.Max(h * 0.01, h * (0.26 + settings.ActiveLyricsOffset));
+        double lyricsHeight = Math.Min(h * LyricsHeightFraction, h * 0.98 - lyricsTop);
+        double scale = settings.ActiveArtworkScale;
+        double BlockTop(double height) => Math.Max(top, widgetBottom - height);
+        double MaxArtwork(double width) => Math.Min(width, h * 0.97 - top - ControlsHeight - 20);
 
-        double BlockTop(double height) => Math.Max(top, Math.Min(bottom, limit) - height);
-
-        if (!showsLyrics || !media.HasTrack)
+        if (!HasLyricsMode)
         {
-            double maxArt = Math.Min(w * 0.5, limit - top - ControlsHeight - 20);
-            double art = Math.Clamp(Math.Min(h * 0.26, w * 0.22) * scale, 90, Math.Max(90, maxArt));
-            double cw = Math.Max(art * 0.95, 340);
+            // Artwork + controls, centred.
+            double baseSide = Math.Min(h * 0.2, w * 0.2);
+            double art = Math.Max(90, Math.Min(baseSide * scale, MaxArtwork(w * 0.5)));
             double blockTop = BlockTop(art + 20 + ControlsHeight);
+            double cw = Math.Max(art * 0.95, 300);
             Place(artworkFrame, (w - art) / 2, blockTop, art, art, animated);
-            Place(controls, (w - cw) / 2, blockTop + art + 20, cw, ControlsHeight, animated);
-            Place(lyricsHost, w * 0.25, lyricsTop, w * 0.5, lyricsHeight, animated);
+            Place(controls, (w - cw) / 2, blockTop + art + 20, cw, double.NaN, animated);
+            Place(lyricsHost, w / 2, lyricsTop, w / 2 * 0.82, lyricsHeight, animated);
             lyricsPanel.SetAlignment(settings.LyricsPosition == LyricsPosition.Center);
         }
         else if (settings.LyricsPosition is LyricsPosition.Right or LyricsPosition.Left)
         {
+            // Screen split in two halves: artwork + controls in one, lyrics in the other.
             double half = w / 2;
             bool right = settings.LyricsPosition == LyricsPosition.Right;
-            double maxArt = Math.Min(half * 0.88, limit - top - ControlsHeight - 18);
-            double art = Math.Clamp(Math.Min(h * 0.26, w * 0.17) * scale, 90, Math.Max(90, maxArt));
-            double cw = Math.Max(Math.Min(art, half * 0.88), 340);
+            double baseSide = Math.Min(h * 0.2, w * 0.16);
+            double art = Math.Max(90, Math.Min(baseSide * scale, MaxArtwork(half * 0.88)));
             double blockTop = BlockTop(art + 18 + ControlsHeight);
+            double cw = Math.Max(Math.Min(art, half * 0.88), 300);
             double centerX = right ? half / 2 : half + half / 2;
             Place(artworkFrame, centerX - art / 2, blockTop, art, art, animated);
-            Place(controls, centerX - cw / 2, blockTop + art + 18, cw, ControlsHeight, animated);
+            Place(controls, centerX - cw / 2, blockTop + art + 18, cw, double.NaN, animated);
             double lw = half * 0.82;
-            Place(lyricsHost, right ? half + half * 0.02 : half * 0.16, lyricsTop, lw, lyricsHeight, animated);
+            Place(lyricsHost, right ? half : half - lw, lyricsTop, lw, lyricsHeight, animated);
             lyricsPanel.SetAlignment(false);
         }
         else
         {
+            // Big centred lyrics, a small artwork + controls row underneath.
             const double rowHeight = 150;
+            double textTop = lyricsTop;
             double textHeight = Math.Max(160, lyricsHeight - rowHeight - 16);
-            double rowTop = Math.Min(Math.Max(lyricsTop + textHeight + 16, bottom - rowHeight), limit - rowHeight);
+            double rowTop = Math.Min(Math.Max(textTop + textHeight + 16, widgetBottom - rowHeight), h * 0.97 - rowHeight);
             double lw = Math.Min(w * 0.62, 900);
-            Place(lyricsHost, (w - lw) / 2, lyricsTop, lw, textHeight, animated);
+            Place(lyricsHost, (w - lw) / 2, textTop, lw, textHeight, animated);
             double art = Math.Min(76 * scale, rowHeight);
             double rowWidth = art + 16 + 340;
             double x = (w - rowWidth) / 2;
-            Place(artworkFrame, x, rowTop + (ControlsHeight - art) / 2 - 9, art, art, animated);
-            Place(controls, x + art + 16, rowTop - 9, 340, ControlsHeight, animated);
+            double controlsHeight = controls.ActualHeight > 0 ? controls.ActualHeight : 166;
+            double rowInner = Math.Max(art, controlsHeight);
+            Place(artworkFrame, x, rowTop + (rowInner - art) / 2, art, art, animated);
+            Place(controls, x + art + 16, rowTop + (rowInner - controlsHeight) / 2, 340, double.NaN, animated);
             lyricsPanel.SetAlignment(true);
         }
-        artwork.CornerRadius = new CornerRadius(Math.Max(8, artworkFrame.Width * 0.06));
-        artworkFrame.CornerRadius = new CornerRadius(Math.Max(8, artworkFrame.Width * 0.06) + artworkFrame.Padding.Left);
-        artworkPlaceholder.FontSize = Math.Max(24, artworkFrame.Width * 0.3);
-        artworkFrame.ToolTip = showsLyrics ? "Back to player" : "Show lyrics";
+        double side = artworkFrame.Width;
+        double inner = side - artworkFrame.Padding.Left * 2;
+        double radius = Math.Max(6, inner * 0.045);
+        artworkClip.Clip = new RectangleGeometry(new Rect(0, 0, inner, inner), radius, radius);
+        artworkStroke.CornerRadius = new CornerRadius(radius);
+        artworkFrame.CornerRadius = new CornerRadius(side * 0.09);
+        foreach (var child in artworkPlaceholder.Children)
+            if (child is Symbol s) s.Size = inner * 0.32;
+        ApplyArtworkShadow();
     }
 
     private static void Place(FrameworkElement element, double x, double y, double width, double height, bool animated)
     {
-        if (!animated || double.IsNaN(element.Width) || element.Width <= 0)
+        if (!animated || double.IsNaN(Canvas.GetLeft(element)))
         {
             foreach (var p in new[] { Canvas.LeftProperty, Canvas.TopProperty, WidthProperty, HeightProperty })
                 element.BeginAnimation(p, null);
@@ -712,19 +873,19 @@ public sealed class LockScreenView : Grid
             element.Height = height;
             return;
         }
+        // Like SwiftUI's .spring(response: 0.6, dampingFraction: 0.86).
         var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
         void Go(DependencyProperty p, double to)
         {
-            // From = what's on screen now (possibly mid-animation).
             double from = (double)element.GetValue(p);
-            if (double.IsNaN(from) || Math.Abs(from - to) < 0.5)
+            if (double.IsNaN(to) || double.IsNaN(from) || Math.Abs(from - to) < 0.5)
             {
                 element.BeginAnimation(p, null);
                 element.SetValue(p, to);
                 return;
             }
-            element.BeginAnimation(p, new DoubleAnimation(from, to, TimeSpan.FromSeconds(0.5)) { EasingFunction = ease });
-            element.SetValue(p, to); // base value for when the animation is cleared
+            element.BeginAnimation(p, new DoubleAnimation(from, to, TimeSpan.FromSeconds(0.55)) { EasingFunction = ease });
+            element.SetValue(p, to);
         }
         Go(Canvas.LeftProperty, x);
         Go(Canvas.TopProperty, y);
@@ -740,10 +901,15 @@ public sealed class LockScreenView : Grid
         scrubFraction = Math.Clamp(e.GetPosition(progress).X / progress.ActualWidth, 0, 1);
     }
 
-    private void SetProgressThickness(double value)
+    /// Thicker and brighter while hovered or scrubbed.
+    private void SetProgressActive()
     {
-        progressTrack.Height = progressFill.Height = value;
-        progressTrack.CornerRadius = progressFill.CornerRadius = new CornerRadius(value / 2);
+        bool active = hoveringProgress || scrubbing;
+        double thickness = active ? 9 : 5;
+        progressTrack.Height = progressFill.Height = thickness;
+        progressTrack.CornerRadius = progressFill.CornerRadius = new CornerRadius(thickness / 2);
+        var c = TextColor;
+        progressFill.Background = new SolidColorBrush(Color.FromArgb(active ? (byte)242 : (byte)179, c.R, c.G, c.B));
     }
 
     public static string Format(double seconds)
