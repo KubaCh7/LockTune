@@ -121,9 +121,10 @@ public sealed class BackgroundView : Grid
 }
 
 /// Three copies of the tiny blurred artwork rotating and drifting at
-/// different speeds (DriftingArtwork in the Mac app). It's all blur, so it's
-/// drawn into a ~256 px bitmap on the CPU (well under a millisecond) and
-/// stretched over the screen: the graphics card only scales one small image.
+/// different speeds (DriftingArtwork in the Mac app). It's all blur, so each
+/// frame is drawn into a ~256 px bitmap — on a background thread, so it
+/// never takes time from the lyrics and controls — and stretched over the
+/// screen: the graphics card only scales one small image.
 public sealed class DriftingArtwork : Image
 {
     private const int TargetWidth = 256;
@@ -133,13 +134,15 @@ public sealed class DriftingArtwork : Image
         (1.1, -5, 2.1, 0.2, true, 0.8),
         (0.8, 7, 4.2, 0.28, true, 0.65),
     };
+    private static readonly Brush SoftMask = MakeMask();
+    private static System.Windows.Threading.Dispatcher? worker;
+    private static readonly object WorkerLock = new();
 
     private readonly BitmapSource source;
-    private RenderTargetBitmap? target;
     private double aspect = 16.0 / 9;
     private DateTime lastFrame = DateTime.MinValue;
     private bool running;
-    private static readonly Brush SoftMask = MakeMask();
+    private bool inFlight;
 
     /// Frames per second of the drift (it moves slowly; 30 looks the same as 60).
     public static int FramesPerSecond { get; set; } = 30;
@@ -154,8 +157,9 @@ public sealed class DriftingArtwork : Image
         SizeChanged += (_, e) =>
         {
             if (e.NewSize.Width > 0 && e.NewSize.Height > 0) aspect = e.NewSize.Width / e.NewSize.Height;
-            target = null;
-            Draw(DateTime.UtcNow);
+            // First frame right away (also used by the self-test snapshots).
+            var (w, h) = PixelSize();
+            Source = Render(source, w, h, Seconds(DateTime.UtcNow));
         };
     }
 
@@ -167,6 +171,29 @@ public sealed class DriftingArtwork : Image
         mask.GradientStops.Add(new GradientStop(Colors.Transparent, 1));
         mask.Freeze();
         return mask;
+    }
+
+    /// One shared background thread draws the frames.
+    private static System.Windows.Threading.Dispatcher Worker
+    {
+        get
+        {
+            lock (WorkerLock)
+            {
+                if (worker != null) return worker;
+                using var ready = new System.Threading.ManualResetEventSlim();
+                var thread = new System.Threading.Thread(() =>
+                {
+                    worker = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+                    ready.Set();
+                    System.Windows.Threading.Dispatcher.Run();
+                }) { IsBackground = true, Name = "LockTune background" };
+                thread.SetApartmentState(System.Threading.ApartmentState.STA);
+                thread.Start();
+                ready.Wait();
+                return worker!;
+            }
+        }
     }
 
     private void Start()
@@ -183,27 +210,35 @@ public sealed class DriftingArtwork : Image
         CompositionTarget.Rendering -= OnRendering;
     }
 
+    private (int, int) PixelSize() => (TargetWidth, Math.Max(16, (int)Math.Round(TargetWidth / Math.Max(aspect, 0.2))));
+
+    private static double Seconds(DateTime now) => now.Subtract(DateTime.UnixEpoch).TotalSeconds % 100000;
+
     private void OnRendering(object? sender, EventArgs e)
     {
-        if (!IsVisible) return;
+        if (!IsVisible || inFlight) return;
         var now = DateTime.UtcNow;
         if ((now - lastFrame).TotalSeconds < 1.0 / Math.Max(FramesPerSecond, 1) * 0.9) return;
         lastFrame = now;
-        Draw(now);
+        inFlight = true;
+        var (w, h) = PixelSize();
+        var image = source;
+        double t = Seconds(now);
+        var ui = Dispatcher;
+        Worker.BeginInvoke(() =>
+        {
+            var frame = Render(image, w, h, t);
+            ui.BeginInvoke(() =>
+            {
+                Source = frame;
+                inFlight = false;
+            });
+        });
     }
 
-    /// Kept for the layout code (the bitmap follows the control's size by itself).
-    public void Relayout(double width, double height) { }
-
-    private void Draw(DateTime now)
+    /// Draws one frame (any thread; the result is frozen).
+    private static BitmapSource Render(BitmapSource image, int w, int h, double t)
     {
-        int w = TargetWidth, h = Math.Max(16, (int)Math.Round(TargetWidth / Math.Max(aspect, 0.2)));
-        if (target == null || target.PixelWidth != w || target.PixelHeight != h)
-        {
-            target = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
-            Source = target;
-        }
-        double t = now.Subtract(DateTime.UnixEpoch).TotalSeconds % 100000;
         double side = Math.Max(w, h);
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
@@ -217,14 +252,19 @@ public sealed class DriftingArtwork : Image
                 dc.PushTransform(new RotateTransform(t * l.DegreesPerSecond + l.Phase * 57.3));
                 dc.PushOpacity(l.Opacity);
                 if (l.Soft) dc.PushOpacityMask(SoftMask);
-                dc.DrawImage(source, new Rect(-s / 2, -s / 2, s, s));
+                dc.DrawImage(image, new Rect(-s / 2, -s / 2, s, s));
                 if (l.Soft) dc.Pop();
                 dc.Pop();
                 dc.Pop();
                 dc.Pop();
             }
         }
-        target.Clear();
+        var target = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
         target.Render(visual);
+        target.Freeze();
+        return target;
     }
+
+    /// Kept for the layout code (the bitmap follows the control's size by itself).
+    public void Relayout(double width, double height) { }
 }

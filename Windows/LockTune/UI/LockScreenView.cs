@@ -105,6 +105,7 @@ public sealed class LockScreenView : Grid
     private readonly Border controlsGlass = new() { CornerRadius = new CornerRadius(24) };
     private readonly Image controlsShadow = new();
     private Size controlsShadowSize;
+    private readonly DispatcherTimer controlsShadowTimer = new() { Interval = TimeSpan.FromMilliseconds(150) };
     // Frame counter (press F on the lock screen).
     private readonly TextBlock fpsText = new() { FontSize = 12, FontFamily = new FontFamily("Cascadia Mono, Consolas"), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 12, 16, 0), Visibility = Visibility.Collapsed, IsHitTestVisible = false };
     private int frames;
@@ -380,12 +381,12 @@ public sealed class LockScreenView : Grid
         buttons.Children.Add(lyricsCardButton);
         stack.Children.Add(buttons);
         // The glass card (with its shadow) is drawn once and kept on the GPU.
-        // In a Canvas so the (bigger) shadow image doesn't size the card.
-        var shadowLayer = new Canvas { IsHitTestVisible = false };
-        shadowLayer.Children.Add(controlsShadow);
-        controls.Children.Add(shadowLayer);
+        // The (bigger) shadow image must not size the card.
+        controls.Children.Add(new Backdrop { Child = controlsShadow });
         controls.Children.Add(controlsGlass);
-        controls.SizeChanged += (_, _) => UpdateControlsShadow();
+        // Redraw the shadow once the size has settled (it stretches meanwhile).
+        controlsShadowTimer.Tick += (_, _) => { controlsShadowTimer.Stop(); UpdateControlsShadow(); };
+        controls.SizeChanged += (_, _) => { controlsShadowTimer.Stop(); controlsShadowTimer.Start(); };
         controls.Children.Add(new Border { Padding = new Thickness(18, 14, 18, 14), Child = stack });
 
         previousButton.Click += () => media.Previous();
@@ -544,6 +545,11 @@ public sealed class LockScreenView : Grid
         Relayout(false);
     }
 
+    /// Windows' media sessions report the position ~1.5 s ahead of what the
+    /// Mac's players do, so the same slider middle (1.5 s) would run early;
+    /// this keeps "1.5 s" meaning the same thing on both.
+    public const double WindowsTimingCorrection = -1.5;
+
     /// Per-frame update: progress bar and lyrics (throttled to the chosen fps).
     /// `step` overrides the frame time (self-test).
     public void Tick(double? step = null)
@@ -576,7 +582,7 @@ public sealed class LockScreenView : Grid
         }
 
         if (HasLyricsMode)
-            lyricsPanel.Tick(position + settings.LyricsLead + lyrics.SongOffset, dt, media.IsPlaying);
+            lyricsPanel.Tick(position + settings.LyricsLead + WindowsTimingCorrection + lyrics.SongOffset, dt, media.IsPlaying);
     }
 
     private void Dismiss()
@@ -823,14 +829,7 @@ public sealed class LockScreenView : Grid
         if (Math.Abs(size.Width - controlsShadowSize.Width) < 6 && Math.Abs(size.Height - controlsShadowSize.Height) < 6) return;
         controlsShadowSize = size;
         if (size.Width > 0 && Glass.ShadowOf(settings.GlassLevel, settings.LiteMode) is { } s)
-        {
-            controlsShadow.Source = Shadows.RoundedRect(size.Width, size.Height, 24, s.Radius, s.Opacity, out double pad);
-            controlsShadow.Stretch = Stretch.Fill;
-            controlsShadow.Width = size.Width + pad * 2;
-            controlsShadow.Height = size.Height + pad * 2;
-            Canvas.SetLeft(controlsShadow, -pad);
-            Canvas.SetTop(controlsShadow, -pad + s.Y);
-        }
+            Shadows.Apply(controlsShadow, size.Width, size.Height, 24, s.Radius, s.Opacity, s.Y);
         else controlsShadow.Source = null;
     }
 
@@ -877,7 +876,7 @@ public sealed class LockScreenView : Grid
             Place(artworkFrame, (w - art) / 2, blockTop, art, art, animated);
             artSide = art;
             Place(controls, (w - cw) / 2, blockTop + art + 20, cw, double.NaN, animated);
-            Place(lyricsHost, w / 2, lyricsTop, w / 2 * 0.82, lyricsHeight, animated);
+            Place(lyricsHost, w / 2, lyricsTop, w / 2 * 0.82, lyricsHeight, animated, animateSize: false);
             lyricsPanel.SetAlignment(settings.LyricsPosition == LyricsPosition.Center);
         }
         else if (settings.LyricsPosition is LyricsPosition.Right or LyricsPosition.Left)
@@ -894,7 +893,7 @@ public sealed class LockScreenView : Grid
             artSide = art;
             Place(controls, centerX - cw / 2, blockTop + art + 18, cw, double.NaN, animated);
             double lw = half * 0.82;
-            Place(lyricsHost, right ? half : half - lw, lyricsTop, lw, lyricsHeight, animated);
+            Place(lyricsHost, right ? half : half - lw, lyricsTop, lw, lyricsHeight, animated, animateSize: false);
             lyricsPanel.SetAlignment(false);
         }
         else
@@ -905,7 +904,7 @@ public sealed class LockScreenView : Grid
             double textHeight = Math.Max(160, lyricsHeight - rowHeight - 16);
             double rowTop = Math.Min(Math.Max(textTop + textHeight + 16, widgetBottom - rowHeight), h * 0.97 - rowHeight);
             double lw = Math.Min(w * 0.62, 900);
-            Place(lyricsHost, (w - lw) / 2, textTop, lw, textHeight, animated);
+            Place(lyricsHost, (w - lw) / 2, textTop, lw, textHeight, animated, animateSize: false);
             double art = Math.Min(76 * scale, rowHeight);
             double rowWidth = art + 16 + 340;
             double x = (w - rowWidth) / 2;
@@ -922,7 +921,7 @@ public sealed class LockScreenView : Grid
         ApplyArtworkShadow();
     }
 
-    private static void Place(FrameworkElement element, double x, double y, double width, double height, bool animated)
+    private static void Place(FrameworkElement element, double x, double y, double width, double height, bool animated, bool animateSize = true)
     {
         if (!animated || double.IsNaN(Canvas.GetLeft(element)))
         {
@@ -950,8 +949,18 @@ public sealed class LockScreenView : Grid
         }
         Go(Canvas.LeftProperty, x);
         Go(Canvas.TopProperty, y);
-        Go(WidthProperty, width);
-        Go(HeightProperty, height);
+        if (animateSize)
+        {
+            Go(WidthProperty, width);
+            Go(HeightProperty, height);
+        }
+        else
+        {
+            element.BeginAnimation(WidthProperty, null);
+            element.BeginAnimation(HeightProperty, null);
+            element.Width = width;
+            element.Height = height;
+        }
     }
 
     // MARK: Progress bar

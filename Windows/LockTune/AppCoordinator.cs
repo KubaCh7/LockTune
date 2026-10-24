@@ -238,11 +238,7 @@ public sealed class AppCoordinator
         lockImageTimer.Start();
     }
 
-    private async void OnUpdateFound(int build, bool userInitiated)
-    {
-        if (LockScreen.IsVisible) return;
-        var answer = MessageBox.Show($"LockTune build {build} is available (you have {VersionString}).\n\nUpdate now? LockTune restarts by itself.",
-                                     "LockTune update", MessageBoxButton.YesNo, MessageBoxImage.Information);
-        if (answer == MessageBoxResult.Yes) await Updater.InstallAsync();
-    }
+    /// A new build was found: it's shown in Settings → General → Updates and in the
+    /// menu ("Install Update…"); no pop-up.
+    private void OnUpdateFound(int build, bool userInitiated) => OnStatus();
 }

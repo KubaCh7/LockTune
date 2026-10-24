@@ -10,7 +10,7 @@ using Forms = System.Windows.Forms;
 namespace LockTune.UI;
 
 /// The ♪-with-a-house icon in the taskbar corner and its menu (the Mac's
-/// menu-bar item, StatusItemController). Click = Preview Widget.
+/// menu-bar item, StatusItemController). A click opens the menu, like on the Mac.
 public sealed class TrayIcon : IDisposable
 {
     private readonly AppCoordinator app;
@@ -27,7 +27,10 @@ public sealed class TrayIcon : IDisposable
         icon.ContextMenuStrip = menu;
         icon.MouseClick += (_, e) =>
         {
-            if (e.Button == Forms.MouseButtons.Left) Later(app.TogglePreview);
+            if (e.Button != Forms.MouseButtons.Left) return;
+            // NotifyIcon only opens its menu on a right click; open it on a left click too.
+            typeof(Forms.NotifyIcon).GetMethod("ShowContextMenu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?.Invoke(icon, null);
         };
         icon.BalloonTipClicked += (_, _) => app.OpenSettings();
         SystemEvents.UserPreferenceChanged += OnThemeChanged;

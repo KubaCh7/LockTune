@@ -94,3 +94,23 @@ public static class Shadows
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.Linear);
     }
 }
+
+/// Holds a shadow image behind an element without taking part in its size:
+/// it's measured as 0×0 and stretched over the parent (plus the image's
+/// negative margins), so it follows resize animations for free.
+public sealed class Backdrop : Decorator
+{
+    public Backdrop() { IsHitTestVisible = false; }
+
+    protected override Size MeasureOverride(Size constraint)
+    {
+        Child?.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return new Size(0, 0);
+    }
+
+    protected override Size ArrangeOverride(Size arrangeSize)
+    {
+        Child?.Arrange(new Rect(arrangeSize));
+        return arrangeSize;
+    }
+}
