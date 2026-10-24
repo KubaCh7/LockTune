@@ -439,10 +439,7 @@ public sealed class SettingsWindow : Window
                         "Only while music is playing. With “Windows default” the display turns off as usual."),
             Toggle("Lock after being idle while music plays", () => settings.IdleEnabled, v => settings.IdleEnabled = v),
             Stepper(() => $"Idle time: {settings.IdleMinutes} min", () => settings.IdleMinutes, v => settings.IdleMinutes = v, 1, 120, () => settings.IdleEnabled),
-            Toggle("Show on all displays", () => settings.AllDisplays, v => settings.AllDisplays = v),
-            Toggle("Album cover on the Windows lock screen (Win+L)", () => settings.WindowsLockImage, v => settings.WindowsLockImage = v),
-            LockImageCaption(),
-            LockImageButtons()));
+            Toggle("Show on all displays", () => settings.AllDisplays, v => settings.AllDisplays = v)));
 
         var unavailable = new TextBlock { Text = "This shortcut is already used by another app. Pick a different one.", FontSize = 11, Foreground = Brushes.Orange, TextWrapping = TextWrapping.Wrap, Margin = RowPadding };
         refreshers.Add(() => unavailable.Visibility = app.HotkeyUnavailable && settings.HotkeyEnabled ? Visibility.Visible : Visibility.Collapsed);
@@ -455,25 +452,6 @@ public sealed class SettingsWindow : Window
         p.Children.Add(Section("Music source",
             Popup("Player", Enum.GetValues<PreferredSource>(), Titles.Of, () => settings.PreferredSource, v => settings.PreferredSource = v)));
         return p;
-    }
-
-    private FrameworkElement LockImageCaption()
-    {
-        var caption = Caption("");
-        refreshers.Add(() => caption.Text =
-            "Windows doesn't let apps draw on its own lock screen, so the widget can't appear after Win+L. " +
-            "With this on, the current album cover becomes your Windows lock screen picture (it replaces your picture or Windows Spotlight); " +
-            "Windows shows its own music controls there. If you still see Spotlight, open Lock screen settings and choose “Picture”." +
-            (settings.WindowsLockImage ? $"\nNow: {app.LockImageStatus ?? "waiting for a song with album art"}" : ""));
-        return caption;
-    }
-
-    private FrameworkElement LockImageButtons()
-    {
-        var row = Buttons(("Set Now", () => app.UpdateLockImageNow(), false),
-                          ("Lock Screen Settings…", () => AppCoordinator.OpenUrl("ms-settings:lockscreen"), false));
-        refreshers.Add(() => row.Visibility = settings.WindowsLockImage ? Visibility.Visible : Visibility.Collapsed);
-        return row;
     }
 
     // MARK: Look

@@ -179,7 +179,6 @@ public sealed class AppSettings : INotifyPropertyChanged
     private bool allDisplays = true;
     private bool autoCheckUpdates = true;
     private bool didShowWelcome;
-    private bool windowsLockImage;
     private int timingVersion;
 
     public bool HotkeyEnabled { get => hotkeyEnabled; set => Set(ref hotkeyEnabled, value); }
@@ -245,8 +244,6 @@ public sealed class AppSettings : INotifyPropertyChanged
     public bool AllDisplays { get => allDisplays; set => Set(ref allDisplays, value); }
     public bool AutoCheckUpdates { get => autoCheckUpdates; set => Set(ref autoCheckUpdates, value); }
     public bool DidShowWelcome { get => didShowWelcome; set => Set(ref didShowWelcome, value); }
-    /// Windows only: album cover as the Windows lock screen picture (Win+L).
-    public bool WindowsLockImage { get => windowsLockImage; set => Set(ref windowsLockImage, value); }
     /// Bumped when the meaning of the lyrics timing changes (one-time reset).
     public int TimingVersion { get => timingVersion; set => Set(ref timingVersion, value); }
 

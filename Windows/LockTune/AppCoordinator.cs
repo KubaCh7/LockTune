@@ -25,8 +25,6 @@ public sealed class AppCoordinator
     public TurntableWindow? Turntable { get; private set; }
     /// The shortcut could not be registered (already used by another app).
     public bool HotkeyUnavailable { get; private set; }
-    /// Result of the last "album cover on the Windows lock screen" update.
-    public string? LockImageStatus { get; private set; }
 
     /// Something shown on the Status page changed.
     public event Action? StatusChanged;
@@ -35,7 +33,6 @@ public sealed class AppCoordinator
     private readonly IdleMonitor idle = new();
     private TrayIcon? tray;
     private SettingsWindow? settingsWindow;
-    private System.Windows.Threading.DispatcherTimer? lockImageTimer;
 
     public static int Build => Assembly.GetEntryAssembly()?.GetName().Version?.Build ?? 0;
     public static string VersionString
@@ -62,7 +59,6 @@ public sealed class AppCoordinator
         Media.TrackChanged += OnStatus;
         Media.PlaybackChanged += OnStatus;
         Media.ArtworkChanged += OnStatus;
-        Media.ArtworkChanged += ScheduleLockImage;
         Lyrics.PropertyChanged += (_, _) => OnStatus();
         Updater.StatusChanged += OnStatus;
         Updater.Found += OnUpdateFound;
@@ -185,10 +181,6 @@ public sealed class AppCoordinator
             case nameof(AppSettings.TurntableEnabled):
                 UpdateTurntable();
                 break;
-            case nameof(AppSettings.WindowsLockImage):
-                if (Settings.WindowsLockImage) ScheduleLockImage();
-                else { LockImageStatus = null; OnStatus(); }
-                break;
         }
     }
 
@@ -217,35 +209,6 @@ public sealed class AppCoordinator
             Turntable.ShowWidget();
         }
         else Turntable?.Hide();
-    }
-
-    /// "Set Now" in the settings.
-    public async void UpdateLockImageNow()
-    {
-        if (Media.Artwork == null) { LockImageStatus = "No album art to show yet — play a song first"; OnStatus(); return; }
-        LockImageStatus = "Setting…";
-        OnStatus();
-        LockImageStatus = await WindowsLockImage.SetAsync(Media);
-        OnStatus();
-    }
-
-    /// Debounced: skipping through songs shouldn't rewrite the picture each time.
-    private void ScheduleLockImage()
-    {
-        if (!Settings.WindowsLockImage) return;
-        if (lockImageTimer == null)
-        {
-            lockImageTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-            lockImageTimer.Tick += async (_, _) =>
-            {
-                lockImageTimer.Stop();
-                if (!Settings.WindowsLockImage || Media.Artwork == null) return;
-                LockImageStatus = await WindowsLockImage.SetAsync(Media);
-                OnStatus();
-            };
-        }
-        lockImageTimer.Stop();
-        lockImageTimer.Start();
     }
 
     /// A new build was found: it's shown in Settings → General → Updates and in the

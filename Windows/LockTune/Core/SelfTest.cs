@@ -118,15 +118,6 @@ public static class SelfTest
         }
         catch (Exception e) { Info("LRCLIB unreachable: " + e.Message); }
 
-        // Album cover on the Windows lock screen (changes this test machine only).
-        try
-        {
-            var media = new MediaController(new AppSettings());
-            media.SetTestState(new TrackInfo("Test", "Artist", "Album", 200), art, true, 0);
-            Info("Windows lock screen picture: " + await WindowsLockImage.SetAsync(media));
-        }
-        catch (Exception e) { Info("Windows lock screen picture: " + e.Message); }
-
         // Screens.
         try { RenderScreens(folder, art, Check); }
         catch (Exception e) { Check("Rendering", false, e.ToString()); }
@@ -195,6 +186,29 @@ public static class SelfTest
             settings.LockWallpaper = true;
             settings.LyricsPosition = LyricsPosition.Right;
             app.Media.SetTestState(track, art, playing: true, position: 61);
+
+            // Frame by frame through each switch (catches one-frame glitches).
+            live.ShowStatic(false);
+            Wait(1.0);
+            var steps = new (string Name, Action Do)[]
+            {
+                ("lyrics-on", () => live.HandleKey(System.Windows.Input.Key.L)),
+                ("to-left", () => settings.LyricsPosition = LyricsPosition.Left),
+                ("to-center", () => settings.LyricsPosition = LyricsPosition.Center),
+                ("to-right", () => settings.LyricsPosition = LyricsPosition.Right),
+                ("lyrics-off", () => live.HandleKey(System.Windows.Input.Key.L)),
+            };
+            for (int i = 0; i < steps.Length; i++)
+            {
+                steps[i].Do();
+                for (int k = 0; k < 6; k++)
+                {
+                    if (k > 0) Wait(0.05);
+                    live.UpdateLayout();
+                    Save(live, new Size(live.ActualWidth, live.ActualHeight), Path.Combine(folder, $"anim-{i}-{steps[i].Name}-{k}.png"));
+                }
+                Wait(0.8);
+            }
             live.ShowStatic(true);
             Wait(1.0);
             foreach (var position in new[] { LyricsPosition.Left, LyricsPosition.Center, LyricsPosition.Right, LyricsPosition.Center, LyricsPosition.Left })
