@@ -38,6 +38,8 @@ jobs:
           Get-Item out/LockTune.exe | Format-List Name, Length
 
       - name: Self-test on this PC
+        id: selftest
+        continue-on-error: true
         shell: pwsh
         run: |
           $p = Start-Process -FilePath out/LockTune.exe -ArgumentList '--self-test', "$PWD\selftest" -PassThru
@@ -53,6 +55,26 @@ jobs:
         with:
           name: selftest
           path: selftest
+
+      # Log + screenshots, also when the self-test fails (readable without signing in).
+      - name: Publish self-test results
+        if: always()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if (-not (Test-Path selftest)) { New-Item -ItemType Directory selftest | Out-Null }
+          if (Test-Path "$env:APPDATA\LockTune\errors.log") { Copy-Item "$env:APPDATA\LockTune\errors.log" selftest/ }
+          Compress-Archive -Path selftest/* -DestinationPath selftest-results.zip -Force
+          gh release delete windows-selftest --yes --cleanup-tag 2>$null
+          $global:LASTEXITCODE = 0
+          gh release create windows-selftest selftest-results.zip --target "${{ github.sha }}" --prerelease --latest=false `
+            --title "Windows self-test (CI)" --notes "Self-test log and screenshots of the latest Windows build (${{ steps.selftest.outcome }}). Not an app download."
+          exit 0
+
+      - name: Stop if the self-test failed
+        if: steps.selftest.outcome != 'success'
+        run: exit 1
 
       - name: Build installer (Inno Setup)
         shell: pwsh
