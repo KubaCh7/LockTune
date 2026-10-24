@@ -94,6 +94,8 @@ public sealed class LockScreenView : Grid
     private readonly Border artworkFrame = new();
     private readonly Border artworkInner = new();
     private readonly Image artworkShadow = new();
+    /// Target artwork size of the current layout (Width is mid-animation).
+    private double artSide = 300;
     private readonly Grid artworkClip = new() { ClipToBounds = true };
     private readonly Border artworkStroke = new() { BorderThickness = new Thickness(0.5), IsHitTestVisible = false };
     private readonly Grid artworkImages = new();
@@ -312,6 +314,14 @@ public sealed class LockScreenView : Grid
         artworkFrame.Child = frame;
         artworkFrame.RenderTransformOrigin = new Point(0.5, 0.5);
         artworkFrame.RenderTransform = artworkScale;
+        artworkClip.SizeChanged += (_, e) =>
+        {
+            double w = e.NewSize.Width, h = e.NewSize.Height;
+            double radius = Math.Max(6, Math.Min(w, h) * 0.045);
+            artworkClip.Clip = new RectangleGeometry(new Rect(0, 0, w, h), radius, radius);
+            artworkStroke.CornerRadius = new CornerRadius(radius);
+        };
+        artworkFrame.SizeChanged += (_, e) => artworkInner.CornerRadius = new CornerRadius(e.NewSize.Width * 0.09);
         artworkFrame.Cursor = Cursors.Hand;
         artworkFrame.MouseLeftButtonUp += (_, e) => { ToggleLyrics(); e.Handled = true; };
     }
@@ -770,7 +780,7 @@ public sealed class LockScreenView : Grid
         nextButton.ApplyLook(level, lite, dark);
 
         // Mega Liquid Glass: the artwork sits in a thin glass frame, lyrics on a glass panel.
-        double side = double.IsNaN(artworkFrame.Width) ? 300 : artworkFrame.Width;
+        double side = artSide;
         artworkInner.Padding = new Thickness(mega ? Math.Min(10, Math.Max(5, side * 0.025)) : 0);
         Glass.Apply(artworkInner, level, lite, dark, onlyInMega: true, shadow: false);
         artworkInner.CornerRadius = new CornerRadius(side * 0.09);
@@ -793,7 +803,7 @@ public sealed class LockScreenView : Grid
     /// The artwork's soft shadow (stronger and bigger while playing), as an image.
     private void ApplyArtworkShadow()
     {
-        double side = double.IsNaN(artworkFrame.Width) ? 300 : artworkFrame.Width;
+        double side = artSide;
         if (settings.GlassLevel == GlassLevel.Mega && !settings.LiteMode)
         {
             // The glass frame's own shadow.
@@ -865,6 +875,7 @@ public sealed class LockScreenView : Grid
             double blockTop = BlockTop(art + 20 + ControlsHeight);
             double cw = Math.Max(art * 0.95, 300);
             Place(artworkFrame, (w - art) / 2, blockTop, art, art, animated);
+            artSide = art;
             Place(controls, (w - cw) / 2, blockTop + art + 20, cw, double.NaN, animated);
             Place(lyricsHost, w / 2, lyricsTop, w / 2 * 0.82, lyricsHeight, animated);
             lyricsPanel.SetAlignment(settings.LyricsPosition == LyricsPosition.Center);
@@ -880,6 +891,7 @@ public sealed class LockScreenView : Grid
             double cw = Math.Max(Math.Min(art, half * 0.88), 300);
             double centerX = right ? half / 2 : half + half / 2;
             Place(artworkFrame, centerX - art / 2, blockTop, art, art, animated);
+            artSide = art;
             Place(controls, centerX - cw / 2, blockTop + art + 18, cw, double.NaN, animated);
             double lw = half * 0.82;
             Place(lyricsHost, right ? half : half - lw, lyricsTop, lw, lyricsHeight, animated);
@@ -900,15 +912,11 @@ public sealed class LockScreenView : Grid
             double controlsHeight = controls.ActualHeight > 0 ? controls.ActualHeight : 166;
             double rowInner = Math.Max(art, controlsHeight);
             Place(artworkFrame, x, rowTop + (rowInner - art) / 2, art, art, animated);
+            artSide = art;
             Place(controls, x + art + 16, rowTop + (rowInner - controlsHeight) / 2, 340, double.NaN, animated);
             lyricsPanel.SetAlignment(true);
         }
-        double side = artworkFrame.Width;
-        double inner = side - artworkInner.Padding.Left * 2;
-        double radius = Math.Max(6, inner * 0.045);
-        artworkClip.Clip = new RectangleGeometry(new Rect(0, 0, inner, inner), radius, radius);
-        artworkStroke.CornerRadius = new CornerRadius(radius);
-        artworkInner.CornerRadius = new CornerRadius(side * 0.09);
+        double inner = artSide - artworkInner.Padding.Left * 2;
         foreach (var child in artworkPlaceholder.Children)
             if (child is Symbol s) s.Size = inner * 0.32;
         ApplyArtworkShadow();
