@@ -47,9 +47,16 @@ public sealed class LyricsPanel : Grid
     private sealed class LineVisual
     {
         public required LyricLine Line;
+        /// Positioned with a transform (no layout per frame) and cached on
+        /// the GPU, so moving lines cost almost nothing.
         public required Border Box;
+        /// Inside the cache: blur is computed once, not every frame.
+        public required Border Inner;
+        /// Text shadow (over a normal wallpaper), also inside the cache.
+        public required Border Shade;
         public required TextBlock Text;
         public required ScaleTransform Scale;
+        public required TranslateTransform Move;
         public InstrumentalDots? Dots;
         public SolidColorBrush[] RunBrushes = Array.Empty<SolidColorBrush>();
         public double Y, Height, Opacity, ScaleValue = 0.94, Blur = -1;
@@ -83,6 +90,8 @@ public sealed class LyricsPanel : Grid
     public FontFamily LyricsFont { get; set; } = Glass.Family(FontChoice.SfPro);
     public FontWeight LyricsWeight { get; set; } = FontWeights.Bold;
     public Color TextColor { get; set; } = Colors.White;
+    /// Soft shadow under the text (for legibility over a normal wallpaper).
+    public bool TextShadow { get; set; }
     public event Action<double>? SeekRequested;
 
     public LyricsPanel()
@@ -204,24 +213,31 @@ public sealed class LyricsPanel : Grid
     {
         var text = new TextBlock { TextWrapping = TextWrapping.Wrap };
         var scale = new ScaleTransform(0.94, 0.94);
+        var move = new TranslateTransform();
+        var transforms = new TransformGroup();
+        transforms.Children.Add(scale);
+        transforms.Children.Add(move);
+        var shade = new Border();
+        var inner = new Border { Padding = new Thickness(12, 6, 12, 6), Child = shade };
         var box = new Border
         {
-            Padding = new Thickness(12, 6, 12, 6),
+            Child = inner,
             CornerRadius = new CornerRadius(14),
             Background = Brushes.Transparent,
             Cursor = Cursors.Hand,
-            RenderTransform = scale,
+            RenderTransform = transforms,
             Opacity = 0,
+            CacheMode = new BitmapCache { EnableClearType = false, SnapsToDevicePixels = false },
         };
-        var visual = new LineVisual { Line = line, Box = box, Text = text, Scale = scale };
+        var visual = new LineVisual { Line = line, Box = box, Inner = inner, Shade = shade, Text = text, Scale = scale, Move = move };
         if (line.IsInstrumental)
         {
             visual.Dots = new InstrumentalDots(10) { HorizontalAlignment = HorizontalAlignment.Left };
-            box.Child = visual.Dots;
+            shade.Child = visual.Dots;
         }
         else
         {
-            box.Child = text;
+            shade.Child = text;
             var brushes = new List<SolidColorBrush>();
             foreach (var word in line.Words)
             {
@@ -257,6 +273,7 @@ public sealed class LyricsPanel : Grid
         for (int i = 0; i < lines.Count; i++)
         {
             var l = lines[i];
+            l.Shade.Effect = TextShadow ? Glass.Shadow(0.45, 10, 0) : null;
             l.Text.FontFamily = LyricsFont;
             l.Text.FontWeight = LyricsWeight;
             l.Text.FontSize = fontSize;
@@ -272,6 +289,7 @@ public sealed class LyricsPanel : Grid
             }
             l.Box.Width = width;
             l.Box.Measure(new Size(width, double.PositiveInfinity));
+            Canvas.SetTop(l.Box, 0);
             l.Height = l.Box.DesiredSize.Height;
             tops[i] = y;
             y += l.Height + spacing;
@@ -316,18 +334,21 @@ public sealed class LyricsPanel : Grid
             l.ScaleValue += ((isActive ? 1 : 0.94) - l.ScaleValue) * (1 - Math.Exp(-dt * 9));
 
             bool visible = l.Y + l.Height > -40 && l.Y < ActualHeight + 40;
-            l.Box.Visibility = visible ? Visibility.Visible : Visibility.Hidden;
+            var visibility = visible ? Visibility.Visible : Visibility.Hidden;
+            if (l.Box.Visibility != visibility) l.Box.Visibility = visibility;
             if (!visible) continue;
 
-            Canvas.SetTop(l.Box, l.Y);
-            l.Box.Opacity = l.Opacity;
-            l.Scale.ScaleX = l.Scale.ScaleY = l.ScaleValue;
+            // Only touch properties that actually changed (each write costs a redraw).
+            if (Math.Abs(l.Move.Y - l.Y) > 0.05) l.Move.Y = l.Y;
+            if (Math.Abs(l.Box.Opacity - l.Opacity) > 0.002) l.Box.Opacity = l.Opacity;
+            if (Math.Abs(l.Scale.ScaleX - l.ScaleValue) > 0.0005) l.Scale.ScaleX = l.Scale.ScaleY = l.ScaleValue;
 
-            double blur = Lite || browsing || distance <= 1 || distance > 10 ? 0 : Math.Min((distance - 1) * 0.6, 2.5);
-            if (Math.Abs(blur - l.Blur) > 0.05)
+            // Rounded so the cached line is only re-rendered when the blur really changes.
+            double blur = Lite || browsing || distance <= 1 || distance > 10 ? 0 : Math.Round(Math.Min((distance - 1) * 0.6, 2.5) * 2) / 2;
+            if (blur != l.Blur)
             {
                 l.Blur = blur;
-                l.Box.Effect = blur > 0 ? new BlurEffect { Radius = blur * 2, KernelType = KernelType.Gaussian } : null;
+                l.Inner.Effect = blur > 0 ? new BlurEffect { Radius = blur * 2, KernelType = KernelType.Gaussian } : null;
             }
 
             if (l.Dots != null) l.Dots.Update(wall, isActive && isPlaying);
@@ -342,7 +363,10 @@ public sealed class LyricsPanel : Grid
         {
             var progress = l.Line.WordProgress(time);
             for (int w = 0; w < l.RunBrushes.Length && w < progress.Length; w++)
-                l.RunBrushes[w].Color = WithAlpha(0.38 + 0.62 * progress[w]);
+            {
+                var color = WithAlpha(0.38 + 0.62 * progress[w]);
+                if (l.RunBrushes[w].Color != color) l.RunBrushes[w].Color = color;
+            }
             l.WasActive = true;
         }
         else if (l.WasActive)

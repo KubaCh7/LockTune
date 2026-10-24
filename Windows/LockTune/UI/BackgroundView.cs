@@ -67,7 +67,7 @@ public sealed class BackgroundView : Grid
         switch (style)
         {
             case BackgroundStyle.Artwork when media.Artwork != null:
-                return new Image { Source = media.Artwork, Stretch = Stretch.UniformToFill };
+                return new Image { Source = media.Artwork, Stretch = Stretch.UniformToFill, CacheMode = new BitmapCache() };
             default:
                 if (media.BlurredArtwork == null) return null;
                 return lite ? Smooth(new Image { Source = media.BlurredArtwork, Stretch = Stretch.UniformToFill })
@@ -78,6 +78,7 @@ public sealed class BackgroundView : Grid
     private static Image Smooth(Image image)
     {
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.Linear);
+        image.CacheMode = new BitmapCache { RenderAtScale = 0.5, EnableClearType = false };
         return image;
     }
 
@@ -121,32 +122,28 @@ public sealed class BackgroundView : Grid
 }
 
 /// Three copies of the tiny blurred artwork rotating and drifting at
-/// different speeds; GPU-composited transforms only, so it's cheap.
+/// different speeds. Each layer is rendered once into a small GPU texture
+/// (it's blurry anyway) and then only transformed — nearly free per frame.
 public sealed class DriftingArtwork : Canvas
 {
-    private readonly (Image Image, double SizeFactor, double Seconds, double Phase, double Drift, bool Soft)[] layers;
+    private readonly (Border Layer, double SizeFactor, double Seconds, double Phase, double Drift)[] layers;
 
     public DriftingArtwork(BitmapSource image)
     {
         ClipToBounds = true;
         layers = new[]
         {
-            (MakeImage(image, false), 1.9, 120.0, 0.0, 0.06, false),
-            (MakeImage(image, true), 1.1, -72.0, 120.0, 0.2, true),
-            (MakeImage(image, true), 0.8, 51.0, 240.0, 0.28, true),
+            (MakeLayer(image, false, 1), 1.9, 120.0, 0.0, 0.06),
+            (MakeLayer(image, true, 0.8), 1.1, -72.0, 120.0, 0.2),
+            (MakeLayer(image, true, 0.65), 0.8, 51.0, 240.0, 0.28),
         };
-        for (int i = 0; i < layers.Length; i++)
-        {
-            var l = layers[i];
-            l.Image.Opacity = i == 0 ? 1 : i == 1 ? 0.8 : 0.65;
-            Children.Add(l.Image);
-        }
+        foreach (var l in layers) Children.Add(l.Layer);
         SizeChanged += (_, e) => Relayout(e.NewSize.Width, e.NewSize.Height);
     }
 
-    private static Image MakeImage(BitmapSource source, bool soft)
+    private static Border MakeLayer(BitmapSource source, bool soft, double opacity)
     {
-        var image = new Image { Source = source, Stretch = Stretch.Fill, RenderTransformOrigin = new Point(0.5, 0.5) };
+        var image = new Image { Source = source, Stretch = Stretch.Fill };
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.Linear);
         if (soft)
         {
@@ -156,7 +153,7 @@ public sealed class DriftingArtwork : Canvas
             mask.GradientStops.Add(new GradientStop(Colors.Transparent, 1));
             image.OpacityMask = Glass.Frozen(mask);
         }
-        return image;
+        return new Border { Child = image, Opacity = opacity, RenderTransformOrigin = new Point(0.5, 0.5) };
     }
 
     public void Relayout(double width, double height)
@@ -166,17 +163,19 @@ public sealed class DriftingArtwork : Canvas
         foreach (var l in layers)
         {
             double s = side * l.SizeFactor;
-            l.Image.Width = s;
-            l.Image.Height = s;
-            SetLeft(l.Image, (width - s) / 2);
-            SetTop(l.Image, (height - s) / 2);
+            l.Layer.Width = s;
+            l.Layer.Height = s;
+            // ~512 px texture whatever the screen size.
+            l.Layer.CacheMode = new BitmapCache { RenderAtScale = Math.Clamp(512 / s, 0.05, 1), EnableClearType = false };
+            SetLeft(l.Layer, (width - s) / 2);
+            SetTop(l.Layer, (height - s) / 2);
 
             var rotate = new RotateTransform(l.Phase);
             var move = new TranslateTransform();
             var group = new TransformGroup();
             group.Children.Add(rotate);
             group.Children.Add(move);
-            l.Image.RenderTransform = group;
+            l.Layer.RenderTransform = group;
 
             // l.Seconds = time for a full turn (negative = counter-clockwise).
             var spin = new DoubleAnimation(l.Phase, l.Phase + (l.Seconds > 0 ? 360 : -360), TimeSpan.FromSeconds(Math.Abs(l.Seconds)))

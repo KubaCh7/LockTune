@@ -181,9 +181,11 @@ public sealed class ToolbarButton : PressableButton
     public ToolbarButton(string symbolName, string help)
     {
         symbol = new Symbol(symbolName, 13, 1.25);
+        // The glass (with its shadow) is drawn once and kept on the GPU.
+        var cached = new Border { Child = glass, CacheMode = new BitmapCache { EnableClearType = false } };
         var grid = new Grid();
-        glass.Child = symbol;
-        grid.Children.Add(glass);
+        grid.Children.Add(cached);
+        grid.Children.Add(symbol);
         grid.Children.Add(ring);
         Child = grid;
         ToolTip = help;
@@ -209,8 +211,10 @@ public sealed class TransportButton : PressableButton
         symbol = new Symbol(symbolName, size, 1.2);
         glass.Width = glass.Height = size * 1.6;
         glass.CornerRadius = new CornerRadius(size * 0.8);
-        glass.Child = symbol;
-        Child = glass;
+        var grid = new Grid();
+        grid.Children.Add(new Border { Child = glass, CacheMode = new BitmapCache { EnableClearType = false } });
+        grid.Children.Add(symbol);
+        Child = grid;
     }
 
     public string SymbolName { set => symbol.SymbolName = value; }

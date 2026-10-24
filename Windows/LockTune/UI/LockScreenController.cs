@@ -179,6 +179,16 @@ public sealed class LockScreenController
             rendering = true;
         }
         if (IsSecure) keyboardGuard.Start();
+        // The desktop screenshot only shows during the entrance; drawing it
+        // under everything afterwards would cost a full-screen layer per frame.
+        var dropUnderlay = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.2) };
+        dropUnderlay.Tick += (_, _) =>
+        {
+            dropUnderlay.Stop();
+            if (main != null) main.Underlay.Source = null;
+            foreach (var extra in extras) extra.Window.Underlay.Source = null;
+        };
+        dropUnderlay.Start();
         watchdog.Start();
         cursorTimer.Start();
         UpdateDisplayAwake();

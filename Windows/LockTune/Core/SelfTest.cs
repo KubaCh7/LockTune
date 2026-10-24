@@ -116,6 +116,15 @@ public static class SelfTest
         }
         catch (Exception e) { Info("LRCLIB unreachable: " + e.Message); }
 
+        // Album cover on the Windows lock screen (changes this test machine only).
+        try
+        {
+            var media = new MediaController(new AppSettings());
+            media.SetTestState(new TrackInfo("Test", "Artist", "Album", 200), art, true, 0);
+            Info("Windows lock screen picture: " + await WindowsLockImage.SetAsync(media));
+        }
+        catch (Exception e) { Info("Windows lock screen picture: " + e.Message); }
+
         // Screens.
         try { RenderScreens(folder, art, Check); }
         catch (Exception e) { Check("Rendering", false, e.ToString()); }

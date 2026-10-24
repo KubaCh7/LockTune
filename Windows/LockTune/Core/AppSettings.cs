@@ -179,6 +179,7 @@ public sealed class AppSettings : INotifyPropertyChanged
     private bool allDisplays = true;
     private bool autoCheckUpdates = true;
     private bool didShowWelcome;
+    private bool windowsLockImage;
 
     public bool HotkeyEnabled { get => hotkeyEnabled; set => Set(ref hotkeyEnabled, value); }
     public uint HotkeyModifiers { get => hotkeyModifiers; set => Set(ref hotkeyModifiers, value, nameof(Hotkey)); }
@@ -243,6 +244,8 @@ public sealed class AppSettings : INotifyPropertyChanged
     public bool AllDisplays { get => allDisplays; set => Set(ref allDisplays, value); }
     public bool AutoCheckUpdates { get => autoCheckUpdates; set => Set(ref autoCheckUpdates, value); }
     public bool DidShowWelcome { get => didShowWelcome; set => Set(ref didShowWelcome, value); }
+    /// Windows only: album cover as the Windows lock screen picture (Win+L).
+    public bool WindowsLockImage { get => windowsLockImage; set => Set(ref windowsLockImage, value); }
 
     // Values for the current mode.
     [JsonIgnore] public double ActiveBottomInset => Math.Max(lockWallpaper ? widgetBottomInset : plainBottomInset, MinBottomInset);
