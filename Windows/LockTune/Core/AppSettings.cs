@@ -264,7 +264,7 @@ public sealed class AppSettings : INotifyPropertyChanged
 
     private sealed class Preset
     {
-        [JsonPropertyName("format")] public string Format { get; set; } = "LockTune preset";
+        [JsonPropertyName("format")] public string? Format { get; set; }
         [JsonPropertyName("version")] public int Version { get; set; } = 1;
         [JsonPropertyName("name")] public string? Name { get; set; }
         [JsonPropertyName("lockWallpaper")] public bool? LockWallpaper { get; set; }
@@ -303,6 +303,7 @@ public sealed class AppSettings : INotifyPropertyChanged
     {
         var p = new Preset
         {
+            Format = "LockTune preset",
             Name = name,
             LockWallpaper = lockWallpaper,
             BackgroundStyle = Raw(backgroundStyle),
