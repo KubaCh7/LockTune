@@ -78,7 +78,8 @@ public static class SelfTest
             var mac = "{\"format\":\"LockTune preset\",\"version\":1,\"name\":\"Mac\",\"clockFont\":\"newYork\",\"clockWeight\":\"ultraLight\",\"glassLevel\":\"normal\",\"lyricsPosition\":\"center\",\"artworkScale\":2.2,\"lockWallpaper\":false}";
             Check("Mac preset import", other.ImportPreset(mac, out _) && other.ClockWeight == ClockWeight.UltraLight && other.LyricsPosition == LyricsPosition.Center && !other.LockWallpaper);
             Check("Preset uses Mac names", preset.Contains("\"glassLevel\": \"mega\"") && preset.Contains("\"clockFont\": \"newYork\""), preset.Replace("\n", " "));
-            Check("Hotkey text", Hotkey.Default.ToString() == "Ctrl+Alt+L", Hotkey.Default.ToString());
+            Check("Hotkey text", Hotkey.Default.ToString() == "Ctrl+Shift+L", Hotkey.Default.ToString());
+            Check("Ctrl+Alt+L is refused (AltGr)", new Hotkey(Native.MOD_CONTROL | Native.MOD_ALT, 0x4C).CollidesWithAltGr && !Hotkey.Default.CollidesWithAltGr);
         }
         catch (Exception e) { Check("Settings", false, e.ToString()); }
 
@@ -180,6 +181,33 @@ public static class SelfTest
         view.Presentation = Presentation.Preview;
         Shot("preview", () => settings.LiteMode = false);
 
+        // Switching the lyrics position with the real animations (in a live window).
+        {
+            var live = new LockScreenView(app.Media, app.Lyrics, settings) { Presentation = Presentation.Lock };
+            var host = new Window
+            {
+                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, ShowActivated = false,
+                Left = -10000, Top = -10000, Width = 1920, Height = 1080, Content = live,
+            };
+            host.Show();
+            void Frame() { live.Tick(); }
+            System.Windows.Media.CompositionTarget.Rendering += (_, _) => Frame();
+            settings.LockWallpaper = true;
+            settings.LyricsPosition = LyricsPosition.Right;
+            app.Media.SetTestState(track, art, playing: true, position: 61);
+            live.ShowStatic(true);
+            Wait(1.0);
+            foreach (var position in new[] { LyricsPosition.Left, LyricsPosition.Center, LyricsPosition.Right, LyricsPosition.Center, LyricsPosition.Left })
+            {
+                settings.LyricsPosition = position;
+                Wait(1.0);
+                var size = new Size(live.ActualWidth, live.ActualHeight);
+                var bitmap = Save(live, size, Path.Combine(folder, $"switch-to-{position.ToString().ToLowerInvariant()}-{Environment.TickCount64 % 1000}.png"));
+                check($"Switch lyrics to {position}", !IsBlank(bitmap), "");
+            }
+            host.Close();
+        }
+
         var turntable = new TurntableWindow(app.Media, settings) { Left = -5000, Top = -5000 };
         turntable.Show();
         turntable.UpdateLayout();
@@ -213,6 +241,16 @@ public static class SelfTest
             }
         }
         window.Close();
+    }
+
+    /// Lets the dispatcher (and animations) run for a while.
+    private static void Wait(double seconds)
+    {
+        var frame = new System.Windows.Threading.DispatcherFrame();
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(seconds) };
+        timer.Tick += (_, _) => { timer.Stop(); frame.Continue = false; };
+        timer.Start();
+        System.Windows.Threading.Dispatcher.PushFrame(frame);
     }
 
     private static RenderTargetBitmap Save(FrameworkElement element, Size size, string path)

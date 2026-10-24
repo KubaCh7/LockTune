@@ -338,7 +338,9 @@ public sealed class SettingsWindow : Window
         intro.Children.Add(new Image { Source = new BitmapImage(new Uri("pack://application:,,,/Assets/LockTune.png")), Width = 56, Height = 56, Margin = new Thickness(0, 4, 14, 4), VerticalAlignment = VerticalAlignment.Center });
         var texts = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         texts.Children.Add(new TextBlock { Text = "LockTune is running", FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
-        texts.Children.Add(Secondary("Play music in Spotify or Apple Music, then lock your PC (Ctrl+Alt+L). The player widget appears on your lock screen, with lyrics on the left toolbar.", 12.5));
+        var introText = Secondary("", 12.5);
+        refreshers.Add(() => introText.Text = $"Play music in Spotify or Apple Music, then lock your PC ({settings.Hotkey}). The player widget appears on your lock screen, with lyrics on the left toolbar.");
+        texts.Children.Add(introText);
         Grid.SetColumn(texts, 1);
         intro.Children.Add(texts);
         p.Children.Add(Section(null, intro));
@@ -945,12 +947,16 @@ public sealed class SettingsWindow : Window
             if ((m & ModifierKeys.Alt) != 0) mods |= Native.MOD_ALT;
             if ((m & ModifierKeys.Shift) != 0) mods |= Native.MOD_SHIFT;
             if ((m & ModifierKeys.Windows) != 0) mods |= Native.MOD_WIN;
-            if ((mods & (Native.MOD_CONTROL | Native.MOD_ALT | Native.MOD_WIN)) == 0)
+            var recorded = new Hotkey(mods, (uint)KeyInterop.VirtualKeyFromKey(key));
+            // Needs Ctrl or Win (Alt+letter opens menus in apps), and not
+            // Ctrl+Alt alone, which is AltGr (ą, ę, ł, ó…) on many keyboards.
+            if ((mods & (Native.MOD_CONTROL | Native.MOD_WIN)) == 0 || recorded.CollidesWithAltGr)
             {
                 System.Media.SystemSounds.Beep.Play();
+                button.Content = recorded.CollidesWithAltGr ? "Not Ctrl+Alt (AltGr) — try Ctrl+Shift…" : "Add Ctrl or Win…";
                 return;
             }
-            settings.Hotkey = new Hotkey(mods, (uint)KeyInterop.VirtualKeyFromKey(key));
+            settings.Hotkey = recorded;
             StopRecording();
         };
         return button;

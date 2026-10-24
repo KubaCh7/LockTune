@@ -176,7 +176,7 @@ LockTune for Windows (`Windows/`, C# + WPF, .NET 8) is a 1:1 port of the Mac app
 1. Kliknij przycisk **Windows 10 / 11** powyżej. Pobierze się `LockTune-Setup.exe`.
 2. Uruchom go. Nie trzeba uprawnień administratora. Windows może pokazać „System Windows ochronił ten komputer”, bo aplikacja nie ma płatnego podpisu: kliknij **Więcej informacji → Uruchom mimo to**.
 3. LockTune pojawi się przy zegarze na pasku zadań (ikona ♪ z domkiem, jak na Macu; czasem jest schowana pod strzałką ^).
-4. Włącz muzykę (Spotify, Apple Music, przeglądarka…) i naciśnij **Ctrl+Alt+L**. Pokaże się ekran blokady LockTune z muzyką.
+4. Włącz muzykę (Spotify, Apple Music, przeglądarka…) i naciśnij **Ctrl+Shift+L**. Pokaże się ekran blokady LockTune z muzyką. (Nie Ctrl+Alt+L: na polskiej klawiaturze to AltGr+L, czyli „ł”.)
 5. **Kliknięcie ikony LockTune** pokazuje ten sam ekran jako podgląd (zamykasz go klawiszem Esc).
 6. Żeby wyjść z ekranu blokady: naciśnij **Enter** albo kliknij napis na dole. Windows wtedy naprawdę się zablokuje i poprosi o PIN lub hasło.
 

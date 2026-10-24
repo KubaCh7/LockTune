@@ -11,7 +11,14 @@ namespace LockTune.Platform;
 /// A global shortcut (modifiers + virtual key), stored in the settings.
 public readonly record struct Hotkey(uint Modifiers, uint VirtualKey)
 {
-    public static readonly Hotkey Default = new(Native.MOD_CONTROL | Native.MOD_ALT, 0x4C); // Ctrl+Alt+L
+    /// Ctrl+Shift+L. (Not Ctrl+Alt+…: on Polish and many other keyboards
+    /// Ctrl+Alt is AltGr, so Ctrl+Alt+L would fire while typing "ł".)
+    public static readonly Hotkey Default = new(Native.MOD_CONTROL | Native.MOD_SHIFT, 0x4C);
+
+    /// Ctrl+Alt without Shift/Win is what AltGr sends: it would steal ą, ę, ł, ó, ś, ż, € …
+    public bool CollidesWithAltGr =>
+        (Modifiers & (Native.MOD_CONTROL | Native.MOD_ALT)) == (Native.MOD_CONTROL | Native.MOD_ALT) &&
+        (Modifiers & (Native.MOD_SHIFT | Native.MOD_WIN)) == 0;
 
     public override string ToString()
     {

@@ -400,6 +400,8 @@ public sealed class AppSettings : INotifyPropertyChanged
             loading = false;
         }
         settings ??= new AppSettings();
+        // Older builds defaulted to Ctrl+Alt+L, which fires on AltGr+L ("ł").
+        if (settings.Hotkey.CollidesWithAltGr) settings.Hotkey = Hotkey.Default;
         settings.persist = true;
         return settings;
     }
