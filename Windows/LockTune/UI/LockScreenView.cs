@@ -884,8 +884,7 @@ public sealed class LockScreenView : Grid
             Place(artworkFrame, (w - art) / 2, blockTop, art, art, animated);
             artSide = art;
             Place(controls, (w - cw) / 2, blockTop + art + 20, cw, double.NaN, animated);
-            Place(lyricsHost, w / 2, lyricsTop, w / 2 * 0.82, lyricsHeight, animated, animateSize: false);
-            lyricsPanel.SetAlignment(settings.LyricsPosition == LyricsPosition.Center);
+            PlaceLyrics(w / 2, lyricsTop, w / 2 * 0.82, lyricsHeight, settings.LyricsPosition == LyricsPosition.Center, animated);
         }
         else if (settings.LyricsPosition is LyricsPosition.Right or LyricsPosition.Left)
         {
@@ -901,8 +900,7 @@ public sealed class LockScreenView : Grid
             artSide = art;
             Place(controls, centerX - cw / 2, blockTop + art + 18, cw, double.NaN, animated);
             double lw = half * 0.82;
-            Place(lyricsHost, right ? half : half - lw, lyricsTop, lw, lyricsHeight, animated, animateSize: false);
-            lyricsPanel.SetAlignment(false);
+            PlaceLyrics(right ? half : half - lw, lyricsTop, lw, lyricsHeight, false, animated);
         }
         else
         {
@@ -912,7 +910,7 @@ public sealed class LockScreenView : Grid
             double textHeight = Math.Max(160, lyricsHeight - rowHeight - 16);
             double rowTop = Math.Min(Math.Max(textTop + textHeight + 16, widgetBottom - rowHeight), h * 0.97 - rowHeight);
             double lw = Math.Min(w * 0.62, 900);
-            Place(lyricsHost, (w - lw) / 2, textTop, lw, textHeight, animated, animateSize: false);
+            PlaceLyrics((w - lw) / 2, textTop, lw, textHeight, true, animated);
             double art = Math.Min(76 * scale, rowHeight);
             double rowWidth = art + 16 + 340;
             double x = (w - rowWidth) / 2;
@@ -921,11 +919,42 @@ public sealed class LockScreenView : Grid
             Place(artworkFrame, x, rowTop + (rowInner - art) / 2, art, art, animated);
             artSide = art;
             Place(controls, x + art + 16, rowTop + (rowInner - controlsHeight) / 2, 340, double.NaN, animated);
-            lyricsPanel.SetAlignment(true);
         }
         double inner = artSide - artworkInner.Padding.Left * 2;
         placeholderSymbol.Size = inner * 0.32;
         ApplyArtworkShadow();
+    }
+
+    private int lyricsMove;
+
+    /// Lyrics change place like on the Mac: fade out, move, fade back in
+    /// (re-wrapping the lines while sliding showed one wrong frame).
+    private void PlaceLyrics(double x, double y, double width, double height, bool centered, bool animated)
+    {
+        bool same = Math.Abs(Canvas.GetLeft(lyricsHost) - x) < 0.5 && Math.Abs(Canvas.GetTop(lyricsHost) - y) < 0.5 &&
+                    Math.Abs(lyricsHost.Width - width) < 0.5 && Math.Abs(lyricsHost.Height - height) < 0.5 && lyricsPanel.Centered == centered;
+        int move = ++lyricsMove;
+        void Apply()
+        {
+            Place(lyricsHost, x, y, width, height, animated: false);
+            lyricsPanel.SetAlignment(centered);
+            lyricsPanel.UpdateLayout();
+        }
+        if (same) return;
+        bool visible = animated && HasLyricsMode && lyricsHost.Opacity > 0.05 && !double.IsNaN(Canvas.GetLeft(lyricsHost));
+        if (!visible)
+        {
+            Apply();
+            return;
+        }
+        var fadeOut = new DoubleAnimation(0, TimeSpan.FromSeconds(0.14));
+        fadeOut.Completed += (_, _) =>
+        {
+            if (move != lyricsMove) return; // superseded
+            Apply();
+            Glass.Animate(lyricsHost, OpacityProperty, HasLyricsMode ? 1 : 0, 0.35);
+        };
+        lyricsHost.BeginAnimation(OpacityProperty, fadeOut);
     }
 
     private static readonly System.Collections.Generic.Dictionary<(FrameworkElement, DependencyProperty), double> PlaceTargets = new();

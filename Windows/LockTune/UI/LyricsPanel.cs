@@ -100,7 +100,8 @@ public sealed class LyricsPanel : Grid
         Children.Add(message);
         Children.Add(loadingDots);
         Background = Brushes.Transparent;
-        SizeChanged += (_, _) => laidOutWidth = -1;
+        // Re-wrap right away (same layout pass), not on the next frame.
+        SizeChanged += (_, e) => { if (Math.Abs(e.NewSize.Width - laidOutWidth) > 0.5 && lines.Count > 0) LayoutLines(); };
         MouseWheel += (_, e) =>
         {
             if (lines.Count == 0) return;
@@ -117,7 +118,7 @@ public sealed class LyricsPanel : Grid
         if (centered == Centered) return;
         Centered = centered;
         foreach (var l in lines) ApplyAlignment(l);
-        laidOutWidth = -1;
+        if (lines.Count > 0 && ActualWidth > 0) LayoutLines(); else laidOutWidth = -1;
         var h = centered ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         message.HorizontalAlignment = loadingDots.HorizontalAlignment = h;
         if (plainScroll.Content is StackPanel stack)
