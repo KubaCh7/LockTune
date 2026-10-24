@@ -189,7 +189,9 @@ public sealed class ToolbarButton : PressableButton
     {
         symbol = new Symbol(symbolName, 13, 1.25);
         var grid = new Grid { Width = 34, Height = 34 };
-        grid.Children.Add(shadow);
+        var shadowLayer = new Canvas { IsHitTestVisible = false };
+        shadowLayer.Children.Add(shadow);
+        grid.Children.Add(shadowLayer);
         grid.Children.Add(glass);
         grid.Children.Add(symbol);
         grid.Children.Add(ring);
@@ -202,7 +204,14 @@ public sealed class ToolbarButton : PressableButton
     public void ApplyLook(GlassLevel level, bool lite, bool dark, bool isOn)
     {
         Glass.Apply(glass, level, lite, dark, shadow: false);
-        if (Glass.ShadowOf(level, lite) is { } s) Shadows.Apply(shadow, 34, 34, 17, s.Radius, s.Opacity, s.Y);
+        if (Glass.ShadowOf(level, lite) is { } s)
+        {
+            shadow.Source = Shadows.RoundedRect(34, 34, 17, s.Radius, s.Opacity, out double pad);
+            shadow.Stretch = Stretch.Fill;
+            shadow.Width = shadow.Height = 34 + pad * 2;
+            Canvas.SetLeft(shadow, -pad);
+            Canvas.SetTop(shadow, -pad + s.Y);
+        }
         else shadow.Source = null;
         ring.BorderBrush = new SolidColorBrush(Color.FromArgb(isOn ? (byte)153 : (byte)0, 255, 255, 255));
     }

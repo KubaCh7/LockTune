@@ -370,7 +370,10 @@ public sealed class LockScreenView : Grid
         buttons.Children.Add(lyricsCardButton);
         stack.Children.Add(buttons);
         // The glass card (with its shadow) is drawn once and kept on the GPU.
-        controls.Children.Add(controlsShadow);
+        // In a Canvas so the (bigger) shadow image doesn't size the card.
+        var shadowLayer = new Canvas { IsHitTestVisible = false };
+        shadowLayer.Children.Add(controlsShadow);
+        controls.Children.Add(shadowLayer);
         controls.Children.Add(controlsGlass);
         controls.SizeChanged += (_, _) => UpdateControlsShadow();
         controls.Children.Add(new Border { Padding = new Thickness(18, 14, 18, 14), Child = stack });
@@ -809,8 +812,15 @@ public sealed class LockScreenView : Grid
         var size = new Size(controls.ActualWidth, controls.ActualHeight);
         if (Math.Abs(size.Width - controlsShadowSize.Width) < 6 && Math.Abs(size.Height - controlsShadowSize.Height) < 6) return;
         controlsShadowSize = size;
-        if (Glass.ShadowOf(settings.GlassLevel, settings.LiteMode) is { } s)
-            Shadows.Apply(controlsShadow, size.Width, size.Height, 24, s.Radius, s.Opacity, s.Y);
+        if (size.Width > 0 && Glass.ShadowOf(settings.GlassLevel, settings.LiteMode) is { } s)
+        {
+            controlsShadow.Source = Shadows.RoundedRect(size.Width, size.Height, 24, s.Radius, s.Opacity, out double pad);
+            controlsShadow.Stretch = Stretch.Fill;
+            controlsShadow.Width = size.Width + pad * 2;
+            controlsShadow.Height = size.Height + pad * 2;
+            Canvas.SetLeft(controlsShadow, -pad);
+            Canvas.SetTop(controlsShadow, -pad + s.Y);
+        }
         else controlsShadow.Source = null;
     }
 
