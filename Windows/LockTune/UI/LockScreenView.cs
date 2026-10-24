@@ -928,12 +928,17 @@ public sealed class LockScreenView : Grid
         ApplyArtworkShadow();
     }
 
+    private static readonly System.Collections.Generic.Dictionary<(FrameworkElement, DependencyProperty), double> PlaceTargets = new();
+
     private static void Place(FrameworkElement element, double x, double y, double width, double height, bool animated, bool animateSize = true)
     {
         if (!animated || double.IsNaN(Canvas.GetLeft(element)))
         {
             foreach (var p in new[] { Canvas.LeftProperty, Canvas.TopProperty, WidthProperty, HeightProperty })
+            {
                 element.BeginAnimation(p, null);
+                PlaceTargets.Remove((element, p));
+            }
             Canvas.SetLeft(element, x);
             Canvas.SetTop(element, y);
             element.Width = width;
@@ -948,11 +953,25 @@ public sealed class LockScreenView : Grid
             if (double.IsNaN(to) || double.IsNaN(from) || Math.Abs(from - to) < 0.5)
             {
                 element.BeginAnimation(p, null);
+                PlaceTargets.Remove((element, p));
                 element.SetValue(p, to);
                 return;
             }
-            element.BeginAnimation(p, new DoubleAnimation(from, to, TimeSpan.FromSeconds(0.55)) { EasingFunction = ease });
-            element.SetValue(p, to);
+            // WPF starts an animation on the *next* frame; until then the base
+            // value shows. So the base stays where the element is now (setting
+            // it to the target made everything flash at its end position for
+            // one frame), and becomes the target when the animation ends.
+            element.SetValue(p, from);
+            PlaceTargets[(element, p)] = to;
+            var animation = new DoubleAnimation(from, to, TimeSpan.FromSeconds(0.55)) { EasingFunction = ease };
+            animation.Completed += (_, _) =>
+            {
+                if (!PlaceTargets.TryGetValue((element, p), out var target) || target != to) return; // superseded
+                PlaceTargets.Remove((element, p));
+                element.SetValue(p, to);
+                element.BeginAnimation(p, null);
+            };
+            element.BeginAnimation(p, animation);
         }
         Go(Canvas.LeftProperty, x);
         Go(Canvas.TopProperty, y);
@@ -965,6 +984,8 @@ public sealed class LockScreenView : Grid
         {
             element.BeginAnimation(WidthProperty, null);
             element.BeginAnimation(HeightProperty, null);
+            PlaceTargets.Remove((element, WidthProperty));
+            PlaceTargets.Remove((element, HeightProperty));
             element.Width = width;
             element.Height = height;
         }
