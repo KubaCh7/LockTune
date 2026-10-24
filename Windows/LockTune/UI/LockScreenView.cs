@@ -96,11 +96,13 @@ public sealed class LockScreenView : Grid
     private readonly ScalingShadow artworkShadow = new();
     /// Target artwork size of the current layout (Width is mid-animation).
     private double artSide = 300;
-    private readonly Grid artworkClip = new() { ClipToBounds = true };
+    private readonly Grid artworkClip = new();
     private readonly Border artworkStroke = new() { BorderThickness = new Thickness(0.5), IsHitTestVisible = false };
     private readonly Grid artworkImages = new();
-    private readonly Grid artworkPlaceholder = new();
+    private readonly Border artworkPlaceholder = new();
     private readonly ScaleTransform artworkScale = new(1, 1);
+    private readonly Symbol placeholderSymbol = new("music.note", 30) { Opacity = 0.55, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+    private CornerRadius artworkCorner = new(6);
     private readonly Grid controls = new();
     private readonly Border controlsGlass = new() { CornerRadius = new CornerRadius(24) };
     private readonly Image controlsShadow = new();
@@ -146,8 +148,7 @@ public sealed class LockScreenView : Grid
     private bool hoveringProgress;
     private double scrubFraction;
     private int shownSecond = -1;
-    private DateTime lastTick = DateTime.UtcNow;
-    private DateTime lastFrame = DateTime.MinValue;
+    private double lastClock;
     private Presentation presentation = Presentation.Preview;
     private bool widgetHidden;
 
@@ -301,7 +302,7 @@ public sealed class LockScreenView : Grid
     private void BuildArtwork()
     {
         artworkPlaceholder.Background = new LinearGradientBrush(Color.FromArgb(64, 255, 255, 255), Color.FromArgb(20, 255, 255, 255), 45);
-        artworkPlaceholder.Children.Add(new Symbol("music.note", 30) { Opacity = 0.55, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+        artworkPlaceholder.Child = placeholderSymbol;
         artworkClip.Children.Add(artworkPlaceholder);
         artworkClip.Children.Add(artworkImages);
         var stack = new Grid();
@@ -317,10 +318,10 @@ public sealed class LockScreenView : Grid
         artworkFrame.RenderTransform = artworkScale;
         artworkClip.SizeChanged += (_, e) =>
         {
-            double w = e.NewSize.Width, h = e.NewSize.Height;
-            double radius = Math.Max(6, Math.Min(w, h) * 0.045);
-            artworkClip.Clip = new RectangleGeometry(new Rect(0, 0, w, h), radius, radius);
-            artworkStroke.CornerRadius = new CornerRadius(radius);
+            artworkCorner = new CornerRadius(Math.Max(6, Math.Min(e.NewSize.Width, e.NewSize.Height) * 0.045));
+            artworkStroke.CornerRadius = artworkPlaceholder.CornerRadius = artworkCorner;
+            foreach (var child in artworkImages.Children)
+                if (child is Border b) b.CornerRadius = artworkCorner;
         };
         artworkFrame.SizeChanged += (_, e) => artworkInner.CornerRadius = new CornerRadius(e.NewSize.Width * 0.09);
         artworkFrame.Cursor = Cursors.Hand;
@@ -436,7 +437,6 @@ public sealed class LockScreenView : Grid
         clockTimer.Start();
         clock.Refresh();
         systemClock.Refresh();
-        lastTick = DateTime.UtcNow;
         Refresh();
 
         bool lite = settings.LiteMode;
@@ -545,11 +545,17 @@ public sealed class LockScreenView : Grid
         Relayout(false);
     }
 
-    /// Per-frame update: progress bar and lyrics (throttled to the chosen fps).
-    /// `step` overrides the frame time (self-test).
-    public void Tick(double? step = null)
+    /// The Mac reads the position over AppleScript, ~1.5 s behind the music,
+    /// and its default "1.5 s ahead" makes up for that. Windows' media
+    /// sessions are on time, so the same slider value would run 1.5 s early.
+    public const double TimingCorrection = -1.5;
+
+    /// Per-frame update: progress bar and lyrics. `frameTime` is WPF's frame
+    /// clock (steady, unlike reading the system time); `step` is for the self-test.
+    public void Tick(double? step = null, TimeSpan? frameTime = null)
     {
         var now = DateTime.UtcNow;
+        double clock = frameTime?.TotalSeconds ?? Environment.TickCount64 / 1000.0;
         frames++;
         if ((now - fpsSince).TotalSeconds >= 1)
         {
@@ -558,10 +564,10 @@ public sealed class LockScreenView : Grid
             frames = 0;
             fpsSince = now;
         }
-        if (step == null && (now - lastFrame).TotalSeconds < settings.FrameInterval * 0.9) return;
-        lastFrame = now;
-        double dt = step ?? Math.Clamp((now - lastTick).TotalSeconds, 0, 0.1);
-        lastTick = now;
+        // Only the 30 fps setting (and Lite mode) skips frames; 60/120 run at the display's rate.
+        if (step == null && settings.FrameInterval > 1.0 / 50 && clock - lastClock < settings.FrameInterval - 0.004) return;
+        double dt = step ?? Math.Clamp(clock - lastClock, 0, 0.1);
+        lastClock = clock;
         double position = media.Position(now);
         double duration = media.Duration;
 
@@ -577,7 +583,7 @@ public sealed class LockScreenView : Grid
         }
 
         if (HasLyricsMode)
-            lyricsPanel.Tick(position + settings.LyricsLead + lyrics.SongOffset, dt, media.IsPlaying);
+            lyricsPanel.Tick(position + settings.LyricsLead + TimingCorrection + lyrics.SongOffset, dt, media.IsPlaying);
     }
 
     private void Dismiss()
@@ -657,8 +663,12 @@ public sealed class LockScreenView : Grid
             foreach (UIElement child in artworkImages.Children) Glass.Animate(child, OpacityProperty, 0, 0.6);
             return;
         }
-        var image = new Image { Source = media.Artwork, Stretch = Stretch.UniformToFill };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+        // A rounded border filled with the image: corners follow the size
+        // exactly while it animates (a clip could lag a frame behind).
+        var brush = new ImageBrush(media.Artwork) { Stretch = Stretch.UniformToFill };
+        RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.HighQuality);
+        brush.Freeze();
+        var image = new Border { Background = brush, CornerRadius = artworkCorner };
         if (!animated || artworkImages.Children.Count == 0)
         {
             artworkImages.Children.Clear();
@@ -679,12 +689,15 @@ public sealed class LockScreenView : Grid
     {
         if (!media.HasTrack) return;
         showsLyrics = !showsLyrics;
-        collapsed = false;
-        ApplyCollapsed(true);
-        if (showsLyrics) lyricsPanel.Reveal();
+        if (collapsed)
+        {
+            collapsed = false;
+            ApplyCollapsed(true);
+        }
         Glass.Animate(lyricsHost, OpacityProperty, HasLyricsMode ? 1 : 0, 0.4);
         lyricsHost.IsHitTestVisible = HasLyricsMode;
-        ApplyTheme();
+        // Only what depends on the mode (a full theme rebuild froze a frame).
+        background.Update(media, HasLyricsMode ? BackgroundStyle.Blurred : settings.BackgroundStyle, settings.LiteMode);
         Relayout(true);
         Refresh();
     }
@@ -911,8 +924,7 @@ public sealed class LockScreenView : Grid
             lyricsPanel.SetAlignment(true);
         }
         double inner = artSide - artworkInner.Padding.Left * 2;
-        foreach (var child in artworkPlaceholder.Children)
-            if (child is Symbol s) s.Size = inner * 0.32;
+        placeholderSymbol.Size = inner * 0.32;
         ApplyArtworkShadow();
     }
 

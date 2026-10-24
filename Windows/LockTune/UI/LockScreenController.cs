@@ -299,9 +299,10 @@ public sealed class LockScreenController
 
     private void OnRendering(object? sender, EventArgs e)
     {
-        view?.Tick();
+        var time = (e as RenderingEventArgs)?.RenderingTime;
+        view?.Tick(frameTime: time);
         foreach (var extra in extras)
-            if (extra.Window.IsVisible && !extra.View.WidgetHidden) extra.View.Tick();
+            if (extra.Window.IsVisible && !extra.View.WidgetHidden) extra.View.Tick(frameTime: time);
     }
 
     private void Activate()

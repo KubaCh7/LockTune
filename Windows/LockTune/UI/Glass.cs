@@ -54,8 +54,17 @@ public static class Glass
         lite || level == GlassLevel.Off ? null
         : level == GlassLevel.Mega ? (0.28, 22, 10) : (0.18, 14, 6);
 
-    /// Frosted material + sheen (white top → clear → faint white bottom).
+    private static readonly System.Collections.Generic.Dictionary<(bool, bool, double), Brush> Materials = new();
+    private static readonly System.Collections.Generic.Dictionary<double, Brush> Rims = new();
+
+    /// Frosted material + sheen (white top → clear → faint white bottom). Cached.
     private static Brush Material(bool ultraThin, bool dark, double sheen)
+    {
+        if (Materials.TryGetValue((ultraThin, dark, sheen), out var cached)) return cached;
+        return Materials[(ultraThin, dark, sheen)] = MakeMaterial(ultraThin, dark, sheen);
+    }
+
+    private static Brush MakeMaterial(bool ultraThin, bool dark, double sheen)
     {
         var material = dark
             ? Color.FromArgb(ultraThin ? (byte)70 : (byte)105, 28, 28, 32)
@@ -76,6 +85,12 @@ public static class Glass
 
     /// Light catching the edge: bright top-left, faint middle, highlight bottom-right.
     public static Brush Rim(double strength)
+    {
+        if (Rims.TryGetValue(strength, out var cached)) return cached;
+        return Rims[strength] = MakeRim(strength);
+    }
+
+    private static Brush MakeRim(double strength)
     {
         var brush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
         brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(0.75 * strength * 255), 255, 255, 255), 0));

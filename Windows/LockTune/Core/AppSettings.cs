@@ -180,6 +180,7 @@ public sealed class AppSettings : INotifyPropertyChanged
     private bool autoCheckUpdates = true;
     private bool didShowWelcome;
     private bool windowsLockImage;
+    private int timingVersion;
 
     public bool HotkeyEnabled { get => hotkeyEnabled; set => Set(ref hotkeyEnabled, value); }
     public uint HotkeyModifiers { get => hotkeyModifiers; set => Set(ref hotkeyModifiers, value, nameof(Hotkey)); }
@@ -246,6 +247,8 @@ public sealed class AppSettings : INotifyPropertyChanged
     public bool DidShowWelcome { get => didShowWelcome; set => Set(ref didShowWelcome, value); }
     /// Windows only: album cover as the Windows lock screen picture (Win+L).
     public bool WindowsLockImage { get => windowsLockImage; set => Set(ref windowsLockImage, value); }
+    /// Bumped when the meaning of the lyrics timing changes (one-time reset).
+    public int TimingVersion { get => timingVersion; set => Set(ref timingVersion, value); }
 
     // Values for the current mode.
     [JsonIgnore] public double ActiveBottomInset => Math.Max(lockWallpaper ? widgetBottomInset : plainBottomInset, MinBottomInset);
@@ -402,6 +405,12 @@ public sealed class AppSettings : INotifyPropertyChanged
         settings ??= new AppSettings();
         // Older builds defaulted to Ctrl+Alt+L, which fires on AltGr+L ("ł").
         if (settings.Hotkey.CollidesWithAltGr) settings.Hotkey = Hotkey.Default;
+        // The Windows timing correction is built in now: start from the middle again.
+        if (settings.TimingVersion < 1)
+        {
+            settings.LyricsLead = 1.5;
+            settings.TimingVersion = 1;
+        }
         settings.persist = true;
         return settings;
     }
