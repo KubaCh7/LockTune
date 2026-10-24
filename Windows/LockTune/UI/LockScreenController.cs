@@ -325,8 +325,8 @@ public sealed class LockScreenController
     private void Watch()
     {
         if (!IsSecure || unlocking) return;
-        foreach (var w in extras) if (w.Window.IsVisible) w.Window.Reassert();
-        main?.Reassert();
+        // (No re-raising the windows on every check: that makes Windows
+        // recompose the whole screen several times a second.)
         if (Native.ForegroundIsOursOrNone(out _)) return;
         // A short grace period right after showing, while we take focus.
         if ((DateTime.UtcNow - shownAt).TotalSeconds < 1.5)

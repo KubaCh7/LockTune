@@ -105,6 +105,7 @@ public static class SelfTest
         }
         catch (Exception e) { Check("Global shortcut registers", false, e.Message); }
         Info("Idle for " + Native.IdleTime());
+        Info($"Render tier {System.Windows.Media.RenderCapability.Tier >> 16}");
         Info("Wallpaper: " + (Native.DesktopWallpaperPath() ?? "none"));
 
         // LRCLIB (network; informational only).

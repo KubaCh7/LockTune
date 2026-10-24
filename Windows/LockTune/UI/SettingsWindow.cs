@@ -350,6 +350,10 @@ public sealed class SettingsWindow : Window
                       () => app.Media.Track is { } t ? $"{t.Title} — {t.Artist} · {app.Media.SourceName}" : "Start a song in Spotify or Apple Music."),
             StatusRow(() => app.Media.SessionsAvailable, () => $"Access to Windows media sessions: {(app.Media.SessionsAvailable ? "Allowed" : "Unavailable")}",
                       () => app.Media.SessionsAvailable ? "OK. Spotify, Apple Music and browsers need no extra permission." : app.Media.Status),
+            StatusRow(() => RenderCapability.Tier >> 16 >= 2, () => "Graphics acceleration",
+                      () => RenderCapability.Tier >> 16 >= 2
+                          ? "On (the graphics card draws the lock screen). Press F on the lock screen to see the frame rate."
+                          : "Off — Windows draws LockTune in software, so animations can stutter. Turn on Lite mode, or update the graphics driver."),
             StatusRow(() => true, () => "Showing on the lock screen",
                       () => "Ready. Lock with the shortcut while music plays. Windows doesn't let apps draw on its own lock screen, so LockTune shows its lock screen first; leaving it locks Windows (PIN / password)."),
             StatusRow(() => !app.HotkeyUnavailable || !settings.HotkeyEnabled, () => "Lock Screen Now",

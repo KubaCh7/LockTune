@@ -35,10 +35,7 @@ public sealed class ClockView : Border
         var stack = new StackPanel();
         stack.Children.Add(date);
         stack.Children.Add(time);
-        // The shadow is rendered once (per minute), not every frame.
-        stack.Effect = Glass.Shadow(0.12, 14, 2);
         Child = stack;
-        CacheMode = new BitmapCache { EnableClearType = false };
         Refresh();
     }
 
@@ -87,7 +84,6 @@ public sealed class LockScreenView : Grid
     private readonly Grid artworkBackdrop = new();
     private readonly BackgroundView background = new();
     private readonly ScaleTransform backgroundScale = new(1, 1);
-    private readonly BlurEffect backgroundBlur = new() { Radius = 0 };
     private readonly ClockView clock = new();
     private readonly TextBlock hint = new() { FontSize = 12, FontWeight = FontWeights.Medium, Opacity = 0.6, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 18), Cursor = Cursors.Hand };
 
@@ -95,8 +91,9 @@ public sealed class LockScreenView : Grid
     private readonly Canvas content = new();
     private readonly TranslateTransform contentOffset = new();
     private readonly ScaleTransform contentScale = new(1, 1);
-    private readonly Border artworkFrame = new() { CacheMode = new BitmapCache { EnableClearType = false } };
+    private readonly Border artworkFrame = new();
     private readonly Border artworkInner = new();
+    private readonly Image artworkShadow = new();
     private readonly Grid artworkClip = new() { ClipToBounds = true };
     private readonly Border artworkStroke = new() { BorderThickness = new Thickness(0.5), IsHitTestVisible = false };
     private readonly Grid artworkImages = new();
@@ -104,6 +101,12 @@ public sealed class LockScreenView : Grid
     private readonly ScaleTransform artworkScale = new(1, 1);
     private readonly Grid controls = new();
     private readonly Border controlsGlass = new() { CornerRadius = new CornerRadius(24) };
+    private readonly Image controlsShadow = new();
+    private Size controlsShadowSize;
+    // Frame counter (press F on the lock screen).
+    private readonly TextBlock fpsText = new() { FontSize = 12, FontFamily = new FontFamily("Cascadia Mono, Consolas"), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 12, 16, 0), Visibility = Visibility.Collapsed, IsHitTestVisible = false };
+    private int frames;
+    private DateTime fpsSince = DateTime.UtcNow;
     private readonly TextBlock titleText = new() { FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBlock artistText = new() { FontSize = 13, Opacity = 0.65, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly Grid progress = new() { Height = 14, Background = Brushes.Transparent, Cursor = Cursors.Hand };
@@ -219,6 +222,7 @@ public sealed class LockScreenView : Grid
         Children.Add(toolbar);
         hint.MouseLeftButtonUp += (_, e) => { Dismiss(); e.Handled = true; };
         Children.Add(hint);
+        Children.Add(fpsText);
 
         clockTimer.Tick += (_, _) => { clock.Refresh(); systemClock.Refresh(); };
         SizeChanged += (_, _) => { Relayout(false); ApplyClockSizes(); };
@@ -302,7 +306,10 @@ public sealed class LockScreenView : Grid
         stack.Children.Add(artworkStroke);
         artworkStroke.BorderBrush = new SolidColorBrush(Color.FromArgb(26, 255, 255, 255));
         artworkInner.Child = stack;
-        artworkFrame.Child = artworkInner;
+        var frame = new Grid();
+        frame.Children.Add(artworkShadow);
+        frame.Children.Add(artworkInner);
+        artworkFrame.Child = frame;
         artworkFrame.RenderTransformOrigin = new Point(0.5, 0.5);
         artworkFrame.RenderTransform = artworkScale;
         artworkFrame.Cursor = Cursors.Hand;
@@ -363,7 +370,9 @@ public sealed class LockScreenView : Grid
         buttons.Children.Add(lyricsCardButton);
         stack.Children.Add(buttons);
         // The glass card (with its shadow) is drawn once and kept on the GPU.
-        controls.Children.Add(new Border { Child = controlsGlass, CacheMode = new BitmapCache { EnableClearType = false } });
+        controls.Children.Add(controlsShadow);
+        controls.Children.Add(controlsGlass);
+        controls.SizeChanged += (_, _) => UpdateControlsShadow();
         controls.Children.Add(new Border { Padding = new Thickness(18, 14, 18, 14), Child = stack });
 
         previousButton.Click += () => media.Previous();
@@ -424,12 +433,6 @@ public sealed class LockScreenView : Grid
             backgroundScale.ScaleX = backgroundScale.ScaleY = 1.12;
             Glass.Animate(backgroundScale, ScaleTransform.ScaleXProperty, 1, 0.55);
             Glass.Animate(backgroundScale, ScaleTransform.ScaleYProperty, 1, 0.55);
-            background.Effect = backgroundBlur;
-            backgroundBlur.Radius = 80;
-            var unblur = new DoubleAnimation(0, TimeSpan.FromSeconds(0.55)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
-            // A full-screen blur is expensive: drop it as soon as it reaches 0.
-            unblur.Completed += (_, _) => background.Effect = null;
-            backgroundBlur.BeginAnimation(BlurEffect.RadiusProperty, unblur);
         }
         plainBackdrop.Opacity = 0;
         Glass.Animate(plainBackdrop, OpacityProperty, 1, 0.4);
@@ -486,6 +489,9 @@ public sealed class LockScreenView : Grid
             case Key.L:
                 ToggleLyrics();
                 return true;
+            case Key.F:
+                fpsText.Visibility = fpsText.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+                return true;
             case Key.Enter:
             case Key.Escape:
                 Dismiss();
@@ -509,8 +515,6 @@ public sealed class LockScreenView : Grid
         content.Opacity = toolbar.Opacity = 1;
         hint.Opacity = 0.6;
         artworkBackdrop.Opacity = DrawsBackground ? 1 : 0;
-        backgroundBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
-        background.Effect = null;
         foreach (var p in new[] { ScaleTransform.ScaleXProperty, ScaleTransform.ScaleYProperty })
         {
             backgroundScale.BeginAnimation(p, null);
@@ -532,6 +536,14 @@ public sealed class LockScreenView : Grid
     public void Tick(double? step = null)
     {
         var now = DateTime.UtcNow;
+        frames++;
+        if ((now - fpsSince).TotalSeconds >= 1)
+        {
+            if (fpsText.Visibility == Visibility.Visible)
+                fpsText.Text = $"{frames / (now - fpsSince).TotalSeconds:0} fps · {(RenderCapability.Tier >> 16 >= 2 ? "GPU" : "software")}";
+            frames = 0;
+            fpsSince = now;
+        }
         if (step == null && (now - lastFrame).TotalSeconds < settings.FrameInterval * 0.9) return;
         lastFrame = now;
         double dt = step ?? Math.Clamp((now - lastTick).TotalSeconds, 0, 0.1);
@@ -700,7 +712,7 @@ public sealed class LockScreenView : Grid
         laterButton.Visibility = earlierButton.Visibility = positionButton.Visibility = extras;
         offsetLabel.Visibility = lyricsOn && Math.Abs(lyrics.SongOffset) > 0.001 ? Visibility.Visible : Visibility.Collapsed;
         offsetText.Text = lyrics.SongOffset.ToString("+0.00;-0.00", CultureInfo.InvariantCulture) + " s";
-        Glass.Apply(offsetLabel, level, lite, dark);
+        Glass.Apply(offsetLabel, level, lite, dark, shadow: false);
         laterButton.ApplyLook(level, lite, dark, false);
         earlierButton.ApplyLook(level, lite, dark, false);
         positionButton.SymbolName = settings.LyricsPosition switch
@@ -744,7 +756,9 @@ public sealed class LockScreenView : Grid
         background.Update(media, HasLyricsMode ? BackgroundStyle.Blurred : settings.BackgroundStyle, lite);
         ApplyClockSizes();
 
-        Glass.Apply(controlsGlass, level, lite, dark);
+        Glass.Apply(controlsGlass, level, lite, dark, shadow: false);
+        controlsShadowSize = default;
+        UpdateControlsShadow();
         var primary = TextColor;
         progressTrack.Background = new SolidColorBrush(Color.FromArgb(56, primary.R, primary.G, primary.B));
         SetProgressActive();
@@ -755,12 +769,13 @@ public sealed class LockScreenView : Grid
         // Mega Liquid Glass: the artwork sits in a thin glass frame, lyrics on a glass panel.
         double side = double.IsNaN(artworkFrame.Width) ? 300 : artworkFrame.Width;
         artworkInner.Padding = new Thickness(mega ? Math.Min(10, Math.Max(5, side * 0.025)) : 0);
-        Glass.Apply(artworkInner, level, lite, dark, onlyInMega: true);
+        Glass.Apply(artworkInner, level, lite, dark, onlyInMega: true, shadow: false);
         artworkInner.CornerRadius = new CornerRadius(side * 0.09);
         ApplyArtworkShadow();
-        Glass.Apply(lyricsHost, level, lite, dark, onlyInMega: true);
+        Glass.Apply(lyricsHost, level, lite, dark, onlyInMega: true, shadow: false);
         lyricsHost.Padding = new Thickness(mega ? 14 : 0);
         lyricsPanel.TextShadow = !(DrawsBackground || mega);
+        lyricsPanel.Lite = lite;
 
         lyricsPanel.TextColor = TextColor;
         lyricsPanel.Lite = lite;
@@ -772,14 +787,31 @@ public sealed class LockScreenView : Grid
         lyricsPanel.InvalidateLines();
     }
 
+    /// The artwork's soft shadow (stronger and bigger while playing), as an image.
     private void ApplyArtworkShadow()
     {
-        if (settings.GlassLevel == GlassLevel.Mega && !settings.LiteMode) return; // the glass frame has its own
         double side = double.IsNaN(artworkFrame.Width) ? 300 : artworkFrame.Width;
+        if (settings.GlassLevel == GlassLevel.Mega && !settings.LiteMode)
+        {
+            // The glass frame's own shadow.
+            Shadows.Apply(artworkShadow, side, side, side * 0.09, 22, 0.28, 10);
+            return;
+        }
         bool playing = media.IsPlaying;
-        artworkInner.Effect = settings.LiteMode
-            ? Glass.Shadow(playing ? 0.42 : 0.25, 8, 4)
-            : Glass.Shadow(playing ? 0.42 : 0.25, side * (playing ? 0.09 : 0.05), side * (playing ? 0.05 : 0.025));
+        double corner = Math.Max(6, side * 0.045);
+        if (settings.LiteMode) Shadows.Apply(artworkShadow, side, side, corner, 8, playing ? 0.42 : 0.25, 4);
+        else Shadows.Apply(artworkShadow, side, side, corner, side * (playing ? 0.09 : 0.05), playing ? 0.42 : 0.25, side * (playing ? 0.05 : 0.025));
+    }
+
+    /// The player card's shadow, redrawn only when its size really changes.
+    private void UpdateControlsShadow()
+    {
+        var size = new Size(controls.ActualWidth, controls.ActualHeight);
+        if (Math.Abs(size.Width - controlsShadowSize.Width) < 6 && Math.Abs(size.Height - controlsShadowSize.Height) < 6) return;
+        controlsShadowSize = size;
+        if (Glass.ShadowOf(settings.GlassLevel, settings.LiteMode) is { } s)
+            Shadows.Apply(controlsShadow, size.Width, size.Height, 24, s.Radius, s.Opacity, s.Y);
+        else controlsShadow.Source = null;
     }
 
     private void ApplyClockSizes()

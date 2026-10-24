@@ -15,7 +15,8 @@ namespace LockTune.UI;
 public static class Glass
 {
     /// `dark` = the widget's colour scheme (light artwork → light glass).
-    public static void Apply(Border border, GlassLevel level, bool lite, bool dark = true, bool onlyInMega = false)
+    /// `shadow`: false on the lock screen, where shadows are images (see Shadows).
+    public static void Apply(Border border, GlassLevel level, bool lite, bool dark = true, bool onlyInMega = false, bool shadow = true)
     {
         if (onlyInMega && (level != GlassLevel.Mega || lite))
         {
@@ -45,8 +46,13 @@ public static class Glass
         border.Background = Material(ultraThin: mega, dark, sheen: mega ? 0.22 : 0.14);
         border.BorderBrush = Rim(mega ? 1 : 0.7);
         border.BorderThickness = new Thickness(1.2);
-        border.Effect = Shadow(mega ? 0.28 : 0.18, mega ? 22 : 14, mega ? 10 : 6);
+        border.Effect = shadow ? Shadow(mega ? 0.28 : 0.18, mega ? 22 : 14, mega ? 10 : 6) : null;
     }
+
+    /// The glass shadow (opacity, radius, y) for a level, or null when it has none.
+    public static (double Opacity, double Radius, double Y)? ShadowOf(GlassLevel level, bool lite) =>
+        lite || level == GlassLevel.Off ? null
+        : level == GlassLevel.Mega ? (0.28, 22, 10) : (0.18, 14, 6);
 
     /// Frosted material + sheen (white top → clear → faint white bottom).
     private static Brush Material(bool ultraThin, bool dark, double sheen)
@@ -174,6 +180,7 @@ public class PressableButton : Border
 /// 34 pt glass circle with a 13 pt semibold symbol (ToolbarButton in LockWidgetView.swift).
 public sealed class ToolbarButton : PressableButton
 {
+    private readonly Image shadow = new();
     private readonly Border glass = new() { Width = 34, Height = 34, CornerRadius = new CornerRadius(17) };
     private readonly Border ring = new() { Width = 34, Height = 34, CornerRadius = new CornerRadius(17), BorderThickness = new Thickness(1), IsHitTestVisible = false };
     private readonly Symbol symbol;
@@ -181,10 +188,9 @@ public sealed class ToolbarButton : PressableButton
     public ToolbarButton(string symbolName, string help)
     {
         symbol = new Symbol(symbolName, 13, 1.25);
-        // The glass (with its shadow) is drawn once and kept on the GPU.
-        var cached = new Border { Child = glass, CacheMode = new BitmapCache { EnableClearType = false } };
-        var grid = new Grid();
-        grid.Children.Add(cached);
+        var grid = new Grid { Width = 34, Height = 34 };
+        grid.Children.Add(shadow);
+        grid.Children.Add(glass);
         grid.Children.Add(symbol);
         grid.Children.Add(ring);
         Child = grid;
@@ -195,7 +201,9 @@ public sealed class ToolbarButton : PressableButton
 
     public void ApplyLook(GlassLevel level, bool lite, bool dark, bool isOn)
     {
-        Glass.Apply(glass, level, lite, dark);
+        Glass.Apply(glass, level, lite, dark, shadow: false);
+        if (Glass.ShadowOf(level, lite) is { } s) Shadows.Apply(shadow, 34, 34, 17, s.Radius, s.Opacity, s.Y);
+        else shadow.Source = null;
         ring.BorderBrush = new SolidColorBrush(Color.FromArgb(isOn ? (byte)153 : (byte)0, 255, 255, 255));
     }
 }
@@ -212,12 +220,12 @@ public sealed class TransportButton : PressableButton
         glass.Width = glass.Height = size * 1.6;
         glass.CornerRadius = new CornerRadius(size * 0.8);
         var grid = new Grid();
-        grid.Children.Add(new Border { Child = glass, CacheMode = new BitmapCache { EnableClearType = false } });
+        grid.Children.Add(glass);
         grid.Children.Add(symbol);
         Child = grid;
     }
 
     public string SymbolName { set => symbol.SymbolName = value; }
 
-    public void ApplyLook(GlassLevel level, bool lite, bool dark) => Glass.Apply(glass, level, lite, dark, onlyInMega: true);
+    public void ApplyLook(GlassLevel level, bool lite, bool dark) => Glass.Apply(glass, level, lite, dark, onlyInMega: true, shadow: false);
 }

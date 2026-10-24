@@ -47,12 +47,9 @@ public sealed class LyricsPanel : Grid
     private sealed class LineVisual
     {
         public required LyricLine Line;
-        /// Positioned with a transform (no layout per frame) and cached on
-        /// the GPU, so moving lines cost almost nothing.
+        /// Positioned with a transform, so moving lines need no layout.
         public required Border Box;
-        /// Inside the cache: blur is computed once, not every frame.
         public required Border Inner;
-        /// Text shadow (over a normal wallpaper), also inside the cache.
         public required Border Shade;
         public required TextBlock Text;
         public required ScaleTransform Scale;
@@ -111,12 +108,8 @@ public sealed class LyricsPanel : Grid
             lastScroll = DateTime.UtcNow;
             e.Handled = true;
         };
-        var mask = new LinearGradientBrush { StartPoint = new Point(0.5, 0), EndPoint = new Point(0.5, 1) };
-        mask.GradientStops.Add(new GradientStop(Colors.Transparent, 0));
-        mask.GradientStops.Add(new GradientStop(Colors.Black, 0.12));
-        mask.GradientStops.Add(new GradientStop(Colors.Black, 0.86));
-        mask.GradientStops.Add(new GradientStop(Colors.Transparent, 1));
-        canvas.OpacityMask = Glass.Frozen(mask);
+        // (The fade at the top and bottom is done per line in Tick — an
+        // opacity mask over the whole panel costs a full redraw every frame.)
     }
 
     public void SetAlignment(bool centered)
@@ -227,7 +220,6 @@ public sealed class LyricsPanel : Grid
             Cursor = Cursors.Hand,
             RenderTransform = transforms,
             Opacity = 0,
-            CacheMode = new BitmapCache { EnableClearType = false, SnapsToDevicePixels = false },
         };
         var visual = new LineVisual { Line = line, Box = box, Inner = inner, Shade = shade, Text = text, Scale = scale, Move = move };
         if (line.IsInstrumental)
@@ -273,7 +265,6 @@ public sealed class LyricsPanel : Grid
         for (int i = 0; i < lines.Count; i++)
         {
             var l = lines[i];
-            l.Shade.Effect = TextShadow ? Glass.Shadow(0.45, 10, 0) : null;
             l.Text.FontFamily = LyricsFont;
             l.Text.FontWeight = LyricsWeight;
             l.Text.FontSize = fontSize;
@@ -296,7 +287,12 @@ public sealed class LyricsPanel : Grid
         }
     }
 
-    public void InvalidateLines() => laidOutWidth = -1;
+    public void InvalidateLines()
+    {
+        laidOutWidth = -1;
+        // One shadow pass for the whole text (over a normal wallpaper only).
+        canvas.Effect = TextShadow && !Lite ? Glass.Shadow(0.45, 10, 0) : null;
+    }
 
     /// Called every frame with the (lead-adjusted) playback time.
     public void Tick(double time, double dt, bool isPlaying)
@@ -331,6 +327,9 @@ public sealed class LyricsPanel : Grid
 
             double opacityTarget = isActive ? 1 : browsing ? 0.65 : Math.Max(0.28, 0.6 - (distance - 1) * 0.06);
             l.Opacity += (opacityTarget - l.Opacity) * (1 - Math.Exp(-dt * 8));
+            // Fade out at the top (12 %) and bottom (14 %) of the panel.
+            double middle = l.Y + l.Height / 2, height = Math.Max(ActualHeight, 1);
+            double edge = Math.Clamp(Math.Min(middle / (height * 0.12), (height - middle) / (height * 0.14)), 0, 1);
             l.ScaleValue += ((isActive ? 1 : 0.94) - l.ScaleValue) * (1 - Math.Exp(-dt * 9));
 
             bool visible = l.Y + l.Height > -40 && l.Y < ActualHeight + 40;
@@ -340,16 +339,10 @@ public sealed class LyricsPanel : Grid
 
             // Only touch properties that actually changed (each write costs a redraw).
             if (Math.Abs(l.Move.Y - l.Y) > 0.05) l.Move.Y = l.Y;
-            if (Math.Abs(l.Box.Opacity - l.Opacity) > 0.002) l.Box.Opacity = l.Opacity;
+            double shown = l.Opacity * edge;
+            if (Math.Abs(l.Box.Opacity - shown) > 0.002) l.Box.Opacity = shown;
             if (Math.Abs(l.Scale.ScaleX - l.ScaleValue) > 0.0005) l.Scale.ScaleX = l.Scale.ScaleY = l.ScaleValue;
 
-            // Rounded so the cached line is only re-rendered when the blur really changes.
-            double blur = Lite || browsing || distance <= 1 || distance > 10 ? 0 : Math.Round(Math.Min((distance - 1) * 0.6, 2.5) * 2) / 2;
-            if (blur != l.Blur)
-            {
-                l.Blur = blur;
-                l.Inner.Effect = blur > 0 ? new BlurEffect { Radius = blur * 2, KernelType = KernelType.Gaussian } : null;
-            }
 
             if (l.Dots != null) l.Dots.Update(wall, isActive && isPlaying);
             else UpdateWords(l, isActive, time);

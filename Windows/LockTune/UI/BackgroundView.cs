@@ -67,7 +67,7 @@ public sealed class BackgroundView : Grid
         switch (style)
         {
             case BackgroundStyle.Artwork when media.Artwork != null:
-                return new Image { Source = media.Artwork, Stretch = Stretch.UniformToFill, CacheMode = new BitmapCache() };
+                return new Image { Source = media.Artwork, Stretch = Stretch.UniformToFill };
             default:
                 if (media.BlurredArtwork == null) return null;
                 return lite ? Smooth(new Image { Source = media.BlurredArtwork, Stretch = Stretch.UniformToFill })
@@ -78,7 +78,6 @@ public sealed class BackgroundView : Grid
     private static Image Smooth(Image image)
     {
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.Linear);
-        image.CacheMode = new BitmapCache { RenderAtScale = 0.5, EnableClearType = false };
         return image;
     }
 
@@ -122,73 +121,110 @@ public sealed class BackgroundView : Grid
 }
 
 /// Three copies of the tiny blurred artwork rotating and drifting at
-/// different speeds. Each layer is rendered once into a small GPU texture
-/// (it's blurry anyway) and then only transformed — nearly free per frame.
-public sealed class DriftingArtwork : Canvas
+/// different speeds (DriftingArtwork in the Mac app). It's all blur, so it's
+/// drawn into a ~256 px bitmap on the CPU (well under a millisecond) and
+/// stretched over the screen: the graphics card only scales one small image.
+public sealed class DriftingArtwork : Image
 {
-    private readonly (Border Layer, double SizeFactor, double Seconds, double Phase, double Drift)[] layers;
+    private const int TargetWidth = 256;
+    private static readonly (double SizeFactor, double DegreesPerSecond, double Phase, double Drift, bool Soft, double Opacity)[] Layers =
+    {
+        (1.9, 3, 0.0, 0.06, false, 1),
+        (1.1, -5, 2.1, 0.2, true, 0.8),
+        (0.8, 7, 4.2, 0.28, true, 0.65),
+    };
+
+    private readonly BitmapSource source;
+    private RenderTargetBitmap? target;
+    private double aspect = 16.0 / 9;
+    private DateTime lastFrame = DateTime.MinValue;
+    private bool running;
+    private static readonly Brush SoftMask = MakeMask();
+
+    /// Frames per second of the drift (it moves slowly; 30 looks the same as 60).
+    public static int FramesPerSecond { get; set; } = 30;
 
     public DriftingArtwork(BitmapSource image)
     {
-        ClipToBounds = true;
-        layers = new[]
+        source = image;
+        Stretch = Stretch.Fill;
+        RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.Linear);
+        Loaded += (_, _) => Start();
+        Unloaded += (_, _) => Stop();
+        SizeChanged += (_, e) =>
         {
-            (MakeLayer(image, false, 1), 1.9, 120.0, 0.0, 0.06),
-            (MakeLayer(image, true, 0.8), 1.1, -72.0, 120.0, 0.2),
-            (MakeLayer(image, true, 0.65), 0.8, 51.0, 240.0, 0.28),
+            if (e.NewSize.Width > 0 && e.NewSize.Height > 0) aspect = e.NewSize.Width / e.NewSize.Height;
+            target = null;
+            Draw(DateTime.UtcNow);
         };
-        foreach (var l in layers) Children.Add(l.Layer);
-        SizeChanged += (_, e) => Relayout(e.NewSize.Width, e.NewSize.Height);
     }
 
-    private static Border MakeLayer(BitmapSource source, bool soft, double opacity)
+    private static Brush MakeMask()
     {
-        var image = new Image { Source = source, Stretch = Stretch.Fill };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.Linear);
-        if (soft)
-        {
-            var mask = new RadialGradientBrush();
-            mask.GradientStops.Add(new GradientStop(Colors.Black, 0));
-            mask.GradientStops.Add(new GradientStop(Color.FromArgb(150, 0, 0, 0), 0.55));
-            mask.GradientStops.Add(new GradientStop(Colors.Transparent, 1));
-            image.OpacityMask = Glass.Frozen(mask);
-        }
-        return new Border { Child = image, Opacity = opacity, RenderTransformOrigin = new Point(0.5, 0.5) };
+        var mask = new RadialGradientBrush();
+        mask.GradientStops.Add(new GradientStop(Colors.Black, 0));
+        mask.GradientStops.Add(new GradientStop(Color.FromArgb(150, 0, 0, 0), 0.55));
+        mask.GradientStops.Add(new GradientStop(Colors.Transparent, 1));
+        mask.Freeze();
+        return mask;
     }
 
-    public void Relayout(double width, double height)
+    private void Start()
     {
-        if (width <= 0 || height <= 0) return;
-        double side = Math.Max(width, height);
-        foreach (var l in layers)
+        if (running) return;
+        running = true;
+        CompositionTarget.Rendering += OnRendering;
+    }
+
+    private void Stop()
+    {
+        if (!running) return;
+        running = false;
+        CompositionTarget.Rendering -= OnRendering;
+    }
+
+    private void OnRendering(object? sender, EventArgs e)
+    {
+        if (!IsVisible) return;
+        var now = DateTime.UtcNow;
+        if ((now - lastFrame).TotalSeconds < 1.0 / Math.Max(FramesPerSecond, 1) * 0.9) return;
+        lastFrame = now;
+        Draw(now);
+    }
+
+    /// Kept for the layout code (the bitmap follows the control's size by itself).
+    public void Relayout(double width, double height) { }
+
+    private void Draw(DateTime now)
+    {
+        int w = TargetWidth, h = Math.Max(16, (int)Math.Round(TargetWidth / Math.Max(aspect, 0.2)));
+        if (target == null || target.PixelWidth != w || target.PixelHeight != h)
         {
-            double s = side * l.SizeFactor;
-            l.Layer.Width = s;
-            l.Layer.Height = s;
-            // ~512 px texture whatever the screen size.
-            l.Layer.CacheMode = new BitmapCache { RenderAtScale = Math.Clamp(512 / s, 0.05, 1), EnableClearType = false };
-            SetLeft(l.Layer, (width - s) / 2);
-            SetTop(l.Layer, (height - s) / 2);
-
-            var rotate = new RotateTransform(l.Phase);
-            var move = new TranslateTransform();
-            var group = new TransformGroup();
-            group.Children.Add(rotate);
-            group.Children.Add(move);
-            l.Layer.RenderTransform = group;
-
-            // l.Seconds = time for a full turn (negative = counter-clockwise).
-            var spin = new DoubleAnimation(l.Phase, l.Phase + (l.Seconds > 0 ? 360 : -360), TimeSpan.FromSeconds(Math.Abs(l.Seconds)))
-            { RepeatBehavior = RepeatBehavior.Forever };
-            rotate.BeginAnimation(RotateTransform.AngleProperty, spin);
-
-            var ease = new SineEase { EasingMode = EasingMode.EaseInOut };
-            var driftX = new DoubleAnimation(-width * l.Drift, width * l.Drift, TimeSpan.FromSeconds(45 + l.Phase / 10))
-            { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = ease };
-            var driftY = new DoubleAnimation(height * l.Drift, -height * l.Drift, TimeSpan.FromSeconds(63 - l.Phase / 12))
-            { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = ease };
-            move.BeginAnimation(TranslateTransform.XProperty, driftX);
-            move.BeginAnimation(TranslateTransform.YProperty, driftY);
+            target = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+            Source = target;
         }
+        double t = now.Subtract(DateTime.UnixEpoch).TotalSeconds % 100000;
+        double side = Math.Max(w, h);
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            foreach (var l in Layers)
+            {
+                double s = side * l.SizeFactor;
+                double x = w / 2.0 + Math.Sin(t * 0.07 + l.Phase) * w * l.Drift;
+                double y = h / 2.0 + Math.Cos(t * 0.05 + l.Phase) * h * l.Drift;
+                dc.PushTransform(new TranslateTransform(x, y));
+                dc.PushTransform(new RotateTransform(t * l.DegreesPerSecond + l.Phase * 57.3));
+                dc.PushOpacity(l.Opacity);
+                if (l.Soft) dc.PushOpacityMask(SoftMask);
+                dc.DrawImage(source, new Rect(-s / 2, -s / 2, s, s));
+                if (l.Soft) dc.Pop();
+                dc.Pop();
+                dc.Pop();
+                dc.Pop();
+            }
+        }
+        target.Clear();
+        target.Render(visual);
     }
 }
