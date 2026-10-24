@@ -20,35 +20,15 @@
                 <ControlTemplate TargetType="CheckBox">
                     <Border x:Name="Track" Width="44" Height="24" CornerRadius="12" Background="{StaticResource Control}"
                             BorderBrush="#40FFFFFF" BorderThickness="1">
-                        <Ellipse x:Name="Knob" Width="16" Height="16" Fill="#E6FFFFFF" HorizontalAlignment="Left" Margin="4,0,0,0">
-                            <Ellipse.RenderTransform>
-                                <TranslateTransform x:Name="KnobOffset" X="0" />
-                            </Ellipse.RenderTransform>
-                        </Ellipse>
+                        <Ellipse x:Name="Knob" Width="16" Height="16" Fill="#E6FFFFFF" HorizontalAlignment="Left" Margin="4,0,0,0" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Track" Property="Background" Value="{StaticResource AccentFill}" />
                             <Setter TargetName="Track" Property="BorderBrush" Value="#80FFFFFF" />
                             <Setter TargetName="Knob" Property="Fill" Value="White" />
-                            <Trigger.EnterActions>
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="KnobOffset" Storyboard.TargetProperty="X" To="20" Duration="0:0:0.18">
-                                            <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </Trigger.EnterActions>
-                            <Trigger.ExitActions>
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="KnobOffset" Storyboard.TargetProperty="X" To="0" Duration="0:0:0.18">
-                                            <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </Trigger.ExitActions>
+                            <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
+                            <Setter TargetName="Knob" Property="Margin" Value="0,0,4,0" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Track" Property="BorderBrush" Value="#99FFFFFF" />
