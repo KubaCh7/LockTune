@@ -93,7 +93,7 @@ public sealed class LockScreenView : Grid
     private readonly ScaleTransform contentScale = new(1, 1);
     private readonly Border artworkFrame = new();
     private readonly Border artworkInner = new();
-    private readonly Image artworkShadow = new();
+    private readonly ScalingShadow artworkShadow = new();
     /// Target artwork size of the current layout (Width is mid-animation).
     private double artSide = 300;
     private readonly Grid artworkClip = new() { ClipToBounds = true };
@@ -545,11 +545,6 @@ public sealed class LockScreenView : Grid
         Relayout(false);
     }
 
-    /// Windows' media sessions report the position ~1.5 s ahead of what the
-    /// Mac's players do, so the same slider middle (1.5 s) would run early;
-    /// this keeps "1.5 s" meaning the same thing on both.
-    public const double WindowsTimingCorrection = -1.5;
-
     /// Per-frame update: progress bar and lyrics (throttled to the chosen fps).
     /// `step` overrides the frame time (self-test).
     public void Tick(double? step = null)
@@ -582,7 +577,7 @@ public sealed class LockScreenView : Grid
         }
 
         if (HasLyricsMode)
-            lyricsPanel.Tick(position + settings.LyricsLead + WindowsTimingCorrection + lyrics.SongOffset, dt, media.IsPlaying);
+            lyricsPanel.Tick(position + settings.LyricsLead + lyrics.SongOffset, dt, media.IsPlaying);
     }
 
     private void Dismiss()
@@ -813,13 +808,13 @@ public sealed class LockScreenView : Grid
         if (settings.GlassLevel == GlassLevel.Mega && !settings.LiteMode)
         {
             // The glass frame's own shadow.
-            Shadows.Apply(artworkShadow, side, side, side * 0.09, 22, 0.28, 10);
+            artworkShadow.Set(0.09, 22 / side, 0.28, 10 / side);
             return;
         }
         bool playing = media.IsPlaying;
         double corner = Math.Max(6, side * 0.045);
-        if (settings.LiteMode) Shadows.Apply(artworkShadow, side, side, corner, 8, playing ? 0.42 : 0.25, 4);
-        else Shadows.Apply(artworkShadow, side, side, corner, side * (playing ? 0.09 : 0.05), playing ? 0.42 : 0.25, side * (playing ? 0.05 : 0.025));
+        if (settings.LiteMode) artworkShadow.Set(corner / side, 8 / side, playing ? 0.42 : 0.25, 4 / side);
+        else artworkShadow.Set(0.045, playing ? 0.09 : 0.05, playing ? 0.42 : 0.25, playing ? 0.05 : 0.025);
     }
 
     /// The player card's shadow, redrawn only when its size really changes.

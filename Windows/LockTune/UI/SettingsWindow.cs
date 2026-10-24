@@ -375,6 +375,33 @@ public sealed class SettingsWindow : Window
         p.Children.Add(Section("Diagnostics", diagnostics,
             Buttons(("Refresh", () => app.Media.Refresh(), false), ("Copy Diagnostics", CopyDiagnostics, false))));
 
+        var updateButtons = new StackPanel { Orientation = Orientation.Horizontal };
+        var check = MacButton("Check for Updates", false);
+        check.Click += (_, _) => app.Updater.CheckNow(userInitiated: true);
+        var install = MacButton("Install Update", true);
+        install.Click += (_, _) => app.InstallUpdate();
+        updateButtons.Children.Add(check);
+        updateButtons.Children.Add(install);
+        var updateStatus = Secondary("", 11);
+        updateStatus.VerticalAlignment = VerticalAlignment.Center;
+        var updateRow = new DockPanel { Margin = RowPadding };
+        DockPanel.SetDock(updateButtons, Dock.Left);
+        updateRow.Children.Add(updateButtons);
+        updateStatus.TextAlignment = TextAlignment.Right;
+        updateRow.Children.Add(updateStatus);
+        refreshers.Add(() =>
+        {
+            bool available = app.Updater.UpdateAvailable;
+            check.Visibility = available ? Visibility.Collapsed : Visibility.Visible;
+            install.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+            install.Content = $"Install Update (build {app.Updater.AvailableBuild})";
+            updateStatus.Text = app.Updater.StatusText;
+        });
+        p.Children.Add(Section("Updates",
+            LabeledRow("Installed version", Secondary(AppCoordinator.VersionString, 13)),
+            Toggle("Check for updates automatically", () => settings.AutoCheckUpdates, v => settings.AutoCheckUpdates = v),
+            updateRow));
+
         p.Children.Add(Section("Try it",
             Buttons(("Preview Widget", () => app.TogglePreview(), true), ("Lock Screen Now", () => app.LockNow(), false)),
             Caption("The LockTune icon (♪ with a house) can be hidden under the ^ arrow in the taskbar corner. Open LockTune again from the Start menu to get back to this window.")));
@@ -403,32 +430,6 @@ public sealed class SettingsWindow : Window
         p.Children.Add(Section("Look", GlassPicker(), LiteModeToggle()));
         p.Children.Add(Section("Lyrics", LyricsHighlightPicker()));
 
-        var updateButtons = new StackPanel { Orientation = Orientation.Horizontal };
-        var check = MacButton("Check for Updates", false);
-        check.Click += (_, _) => app.Updater.CheckNow(userInitiated: true);
-        var install = MacButton("Install Update", true);
-        install.Click += (_, _) => app.InstallUpdate();
-        updateButtons.Children.Add(check);
-        updateButtons.Children.Add(install);
-        var updateStatus = Secondary("", 11);
-        updateStatus.VerticalAlignment = VerticalAlignment.Center;
-        var updateRow = new DockPanel { Margin = RowPadding };
-        DockPanel.SetDock(updateButtons, Dock.Left);
-        updateRow.Children.Add(updateButtons);
-        updateStatus.TextAlignment = TextAlignment.Right;
-        updateRow.Children.Add(updateStatus);
-        refreshers.Add(() =>
-        {
-            bool available = app.Updater.UpdateAvailable;
-            check.Visibility = available ? Visibility.Collapsed : Visibility.Visible;
-            install.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
-            install.Content = $"Install Update (build {app.Updater.AvailableBuild})";
-            updateStatus.Text = app.Updater.StatusText;
-        });
-        p.Children.Add(Section("Updates",
-            LabeledRow("Installed version", Secondary(AppCoordinator.VersionString, 13)),
-            Toggle("Check for updates automatically", () => settings.AutoCheckUpdates, v => settings.AutoCheckUpdates = v),
-            updateRow));
 
         p.Children.Add(Section("Lock screen",
             Toggle("Show the music widget when you lock the PC", () => settings.LockWidgetEnabled, v => settings.LockWidgetEnabled = v),
@@ -440,7 +441,8 @@ public sealed class SettingsWindow : Window
             Stepper(() => $"Idle time: {settings.IdleMinutes} min", () => settings.IdleMinutes, v => settings.IdleMinutes = v, 1, 120, () => settings.IdleEnabled),
             Toggle("Show on all displays", () => settings.AllDisplays, v => settings.AllDisplays = v),
             Toggle("Album cover on the Windows lock screen (Win+L)", () => settings.WindowsLockImage, v => settings.WindowsLockImage = v),
-            LockImageCaption()));
+            LockImageCaption(),
+            LockImageButtons()));
 
         var unavailable = new TextBlock { Text = "This shortcut is already used by another app. Pick a different one.", FontSize = 11, Foreground = Brushes.Orange, TextWrapping = TextWrapping.Wrap, Margin = RowPadding };
         refreshers.Add(() => unavailable.Visibility = app.HotkeyUnavailable && settings.HotkeyEnabled ? Visibility.Visible : Visibility.Collapsed);
@@ -461,9 +463,17 @@ public sealed class SettingsWindow : Window
         refreshers.Add(() => caption.Text =
             "Windows doesn't let apps draw on its own lock screen, so the widget can't appear after Win+L. " +
             "With this on, the current album cover becomes your Windows lock screen picture (it replaces your picture or Windows Spotlight); " +
-            "Windows shows its own music controls there." +
-            (settings.WindowsLockImage && app.LockImageStatus != null ? $"\nNow: {app.LockImageStatus}" : ""));
+            "Windows shows its own music controls there. If you still see Spotlight, open Lock screen settings and choose “Picture”." +
+            (settings.WindowsLockImage ? $"\nNow: {app.LockImageStatus ?? "waiting for a song with album art"}" : ""));
         return caption;
+    }
+
+    private FrameworkElement LockImageButtons()
+    {
+        var row = Buttons(("Set Now", () => app.UpdateLockImageNow(), false),
+                          ("Lock Screen Settings…", () => AppCoordinator.OpenUrl("ms-settings:lockscreen"), false));
+        refreshers.Add(() => row.Visibility = settings.WindowsLockImage ? Visibility.Visible : Visibility.Collapsed);
+        return row;
     }
 
     // MARK: Look

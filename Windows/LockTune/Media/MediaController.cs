@@ -293,6 +293,7 @@ public sealed class MediaController
         double position = tl.Position.TotalSeconds;
         var signature = (position, tl.LastUpdatedTime.UtcTicks);
         if (!force && signature == lastTimelineSignature) return; // nothing new: keep extrapolating
+        bool positionChanged = Math.Abs(position - lastTimelineSignature.Item1) > 0.001;
         lastTimelineSignature = signature;
 
         double duration = Math.Max(0, (tl.EndTime - tl.StartTime).TotalSeconds);
@@ -305,8 +306,12 @@ public sealed class MediaController
         double observed = position;
         if (IsPlaying && tl.LastUpdatedTime.Year > 2000)
         {
+            // "Position was P at time T": add the time since T — but some
+            // players (Spotify) send a fresh position with an old T, which
+            // pushed the lyrics seconds ahead. A position that just changed
+            // is fresh, so only a short age is believed for it.
             double age = (now - tl.LastUpdatedTime.UtcDateTime).TotalSeconds;
-            if (age > 0 && age < 3600) observed += age;
+            if (age > 0 && (age <= 1.0 || !positionChanged && age < 3600)) observed += age;
         }
         if (duration > 0) observed = Math.Min(observed, duration);
         if (force || Math.Abs(observed - Position(now)) > 0.3) Anchor(observed);

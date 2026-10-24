@@ -180,7 +180,7 @@ LockTune for Windows (`Windows/`, C# + WPF, .NET 8) is a 1:1 port of the Mac app
 5. **Kliknięcie ikony LockTune** otwiera menu, jak na Macu: **Lock Screen Now**, **Preview Widget** (podgląd, zamykasz Esc), **Status & Settings…**.
 6. Żeby wyjść z ekranu blokady: naciśnij **Enter** albo kliknij napis na dole. Windows wtedy naprawdę się zablokuje i poprosi o PIN lub hasło.
 
-**Aktualizacje:** LockTune sama sprawdza nowe wersje. Gdy jest nowa, w **Settings → General → Updates** (i w menu) pojawia się **Install Update** — kliknij, a aplikacja zaktualizuje się i uruchomi ponownie. Ręcznie: **General → Updates → Check for Updates**.
+**Aktualizacje:** LockTune sama sprawdza nowe wersje. Gdy jest nowa, w **Settings → Status → Updates** (i w menu) pojawia się **Install Update** — kliknij, a aplikacja zaktualizuje się i uruchomi ponownie. Ręcznie: **Status → Updates → Check for Updates**.
 
 ### How it works on Windows (and its limits)
 

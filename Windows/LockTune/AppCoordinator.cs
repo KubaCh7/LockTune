@@ -219,6 +219,16 @@ public sealed class AppCoordinator
         else Turntable?.Hide();
     }
 
+    /// "Set Now" in the settings.
+    public async void UpdateLockImageNow()
+    {
+        if (Media.Artwork == null) { LockImageStatus = "No album art to show yet — play a song first"; OnStatus(); return; }
+        LockImageStatus = "Setting…";
+        OnStatus();
+        LockImageStatus = await WindowsLockImage.SetAsync(Media);
+        OnStatus();
+    }
+
     /// Debounced: skipping through songs shouldn't rewrite the picture each time.
     private void ScheduleLockImage()
     {

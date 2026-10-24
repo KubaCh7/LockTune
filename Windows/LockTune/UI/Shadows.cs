@@ -114,3 +114,42 @@ public sealed class Backdrop : Decorator
         return arrangeSize;
     }
 }
+
+/// A shadow that scales with its element: it's made once for a reference
+/// size and drawn stretched to the element's current size every frame, so
+/// it moves and grows together with the artwork during layout animations.
+public sealed class ScalingShadow : FrameworkElement
+{
+    private const double Reference = 400;
+    private BitmapSource? image;
+    private double padRatio, yRatio;
+
+    public ScalingShadow()
+    {
+        IsHitTestVisible = false;
+        RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.Linear);
+        SizeChanged += (_, _) => InvalidateVisual();
+    }
+
+    /// Radius and offset as fractions of the element's width (like the Mac's
+    /// side × 0.09 etc.); the corner radius too.
+    public void Set(double cornerRatio, double radiusRatio, double opacity, double offsetRatio)
+    {
+        if (opacity <= 0) { image = null; InvalidateVisual(); return; }
+        image = Shadows.RoundedRect(Reference, Reference, cornerRatio * Reference, radiusRatio * Reference, opacity, out double pad);
+        padRatio = pad / Reference;
+        yRatio = offsetRatio;
+        InvalidateVisual();
+    }
+
+    protected override Size MeasureOverride(Size availableSize) => new(0, 0);
+
+    protected override void OnRender(DrawingContext dc)
+    {
+        if (image == null) return;
+        double w = ActualWidth, h = ActualHeight;
+        if (w <= 0 || h <= 0) return;
+        double pad = padRatio * w;
+        dc.DrawImage(image, new Rect(-pad, -pad + yRatio * w, w + pad * 2, h + pad * 2));
+    }
+}
