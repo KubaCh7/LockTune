@@ -50,6 +50,7 @@ public sealed class TrayIcon : IDisposable
         {
             ShortcutKeyDisplayString = settings.HotkeyEnabled ? settings.Hotkey.ToString() : null,
         });
+        menu.Items.Add(new Forms.ToolStripMenuItem("Open Player Window", null, (_, _) => Later(app.OpenPlayer)));
         menu.Items.Add(new Forms.ToolStripMenuItem("Preview Widget", null, (_, _) => Later(app.TogglePreview)));
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(new Forms.ToolStripMenuItem("Status & Settings…", null, (_, _) => app.OpenSettings()));

@@ -23,6 +23,7 @@ public sealed class AppCoordinator
     public LockScreenController LockScreen { get; }
     public Updater Updater { get; }
     public TurntableWindow? Turntable { get; private set; }
+    public PlayerWindow? Player { get; private set; }
     /// The shortcut could not be registered (already used by another app).
     public bool HotkeyUnavailable { get; private set; }
 
@@ -53,7 +54,7 @@ public sealed class AppCoordinator
         Updater = new Updater(settings);
     }
 
-    public void Start(bool background, bool updated)
+    public void Start(bool background, bool updated, bool player = false)
     {
         _ = Media.StartAsync();
         Media.TrackChanged += OnStatus;
@@ -79,6 +80,7 @@ public sealed class AppCoordinator
 
         SystemEvents.SessionSwitch += OnSessionSwitch;
         LaunchAtLogin.Refresh();
+        PlayerShortcut.EnsureStartMenu();
         UpdateTurntable();
         Updater.Start();
 
@@ -92,8 +94,9 @@ public sealed class AppCoordinator
         }
         else if (updated)
             tray.Notify("LockTune updated", $"You're on {VersionString}.");
-        else if (!background)
+        else if (!background && !player)
             OpenSettings();
+        if (player) OpenPlayer();
     }
 
     // MARK: Actions
@@ -115,6 +118,15 @@ public sealed class AppCoordinator
     {
         if (LockScreen.IsVisible && LockScreen.Presentation == Presentation.Preview) LockScreen.Hide();
         else LockScreen.Show(Presentation.Preview);
+    }
+
+    /// The lock-screen look in a normal window (nothing gets locked).
+    public void OpenPlayer()
+    {
+        if (LockScreen.IsSecure) return;
+        if (LockScreen.IsVisible) LockScreen.Hide();
+        Player ??= new PlayerWindow(Media, Lyrics, Settings, () => LockScreen.IsVisible);
+        Player.Open();
     }
 
     public void OpenSettings()
@@ -211,7 +223,7 @@ public sealed class AppCoordinator
         else Turntable?.Hide();
     }
 
-    /// A new build was found: it's shown in Settings → General → Updates and in the
+    /// A new build was found: it's shown in Settings → Status → Updates and in the
     /// menu ("Install Update…"); no pop-up.
     private void OnUpdateFound(int build, bool userInitiated) => OnStatus();
 }

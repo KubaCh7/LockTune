@@ -20,7 +20,15 @@ using LockTune.Media;
 
 namespace LockTune.UI;
 
-public enum Presentation { Lock, Preview }
+public enum Presentation
+{
+    /// The real thing: leaving it locks Windows.
+    Lock,
+    /// Full screen, closes with Esc or a click on the background.
+    Preview,
+    /// In a normal window (PlayerWindow): nothing to unlock or close.
+    Window,
+}
 
 /// Date + big clock, iPhone lock-screen style (ClockView.swift).
 public sealed class ClockView : Border
@@ -154,6 +162,8 @@ public sealed class LockScreenView : Grid
 
     public event Action? UnlockRequested;
     public event Action? CloseRequested;
+    /// Double click on the background (the player window goes full screen).
+    public event Action? BackgroundDoubleClicked;
 
     public Presentation Presentation
     {
@@ -168,7 +178,7 @@ public sealed class LockScreenView : Grid
         set { widgetHidden = value; Refresh(); }
     }
 
-    private bool DrawsBackground => settings.LockWallpaper || presentation == Presentation.Preview;
+    private bool DrawsBackground => settings.LockWallpaper || presentation != Presentation.Lock;
     private bool HasLyricsMode => showsLyrics && media.HasTrack;
     private ArtworkPalette Palette => media.HasTrack ? media.Palette : ArtworkPalette.Fallback;
     private bool IsLight => DrawsBackground && Palette.IsLight;
@@ -204,6 +214,12 @@ public sealed class LockScreenView : Grid
         artworkBackdrop.Children.Add(clock);
         artworkBackdrop.Background = Brushes.Transparent;
         artworkBackdrop.MouseLeftButtonUp += (_, _) => { if (presentation == Presentation.Preview) CloseRequested?.Invoke(); };
+        artworkBackdrop.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.ClickCount != 2 || presentation != Presentation.Window) return;
+            BackgroundDoubleClicked?.Invoke();
+            e.Handled = true;
+        };
         Children.Add(artworkBackdrop);
 
         // Widget.
@@ -589,7 +605,7 @@ public sealed class LockScreenView : Grid
     private void Dismiss()
     {
         if (presentation == Presentation.Preview) CloseRequested?.Invoke();
-        else UnlockRequested?.Invoke();
+        else if (presentation == Presentation.Lock) UnlockRequested?.Invoke();
     }
 
     // MARK: Reacting to changes
@@ -752,6 +768,8 @@ public sealed class LockScreenView : Grid
         positionButton.ApplyLook(level, lite, dark, false);
         wallpaperButton.SymbolName = settings.LockWallpaper ? "photo.fill" : "photo";
         wallpaperButton.ApplyLook(level, lite, dark, settings.LockWallpaper);
+        // (The window always shows the artwork wallpaper.)
+        wallpaperButton.Visibility = presentation == Presentation.Window ? Visibility.Collapsed : Visibility.Visible;
         hideButton.SymbolName = collapsed ? "eye.slash" : "eye";
         hideButton.ToolTip = collapsed ? "Show widget" : "Hide widget";
         hideButton.ApplyLook(level, lite, dark, collapsed);
@@ -765,7 +783,7 @@ public sealed class LockScreenView : Grid
         hint.Text = presentation == Presentation.Preview
             ? "Preview · click the background or press Esc to close"
             : "Press Enter or click here to unlock";
-        hint.Visibility = plain || widgetHidden ? Visibility.Collapsed : Visibility.Visible;
+        hint.Visibility = plain || widgetHidden || presentation == Presentation.Window ? Visibility.Collapsed : Visibility.Visible;
         artworkBackdrop.IsHitTestVisible = DrawsBackground;
 
         content.Visibility = widgetHidden || !media.HasTrack ? Visibility.Hidden : Visibility.Visible;

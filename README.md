@@ -178,6 +178,7 @@ LockTune for Windows (`Windows/`, C# + WPF, .NET 8) is a 1:1 port of the Mac app
 3. LockTune pojawi się przy zegarze na pasku zadań (ikona ♪ z domkiem, jak na Macu; czasem jest schowana pod strzałką ^).
 4. Włącz muzykę (Spotify, Apple Music, przeglądarka…) i naciśnij **Ctrl+Shift+L**. Pokaże się ekran blokady LockTune z muzyką. (Nie Ctrl+Alt+L: na polskiej klawiaturze to AltGr+L, czyli „ł”.)
 5. **Kliknięcie ikony LockTune** otwiera menu, jak na Macu: **Lock Screen Now**, **Preview Widget** (podgląd, zamykasz Esc), **Status & Settings…**.
+6. **Okno odtwarzacza (LockTune Player):** wygląda jak ekran blokady (okładka, zegar, przyciski, napisy), ale to zwykłe okno i nic nie jest blokowane. Otwierasz je skrótem **LockTune Player** na pulpicie / w menu Start, w menu ikony → **Open Player Window** albo w **Status → Player window**. Okno można przesuwać i zmieniać jego rozmiar; **F11** albo podwójne kliknięcie tła włącza pełny ekran (Esc wychodzi). Spacja = pauza, ←/→ = poprzedni/następny, L = napisy.
 6. Żeby wyjść z ekranu blokady: naciśnij **Enter** albo kliknij napis na dole. Windows wtedy naprawdę się zablokuje i poprosi o PIN lub hasło.
 
 **Aktualizacje:** LockTune sama sprawdza nowe wersje. Gdy jest nowa, w **Settings → Status → Updates** (i w menu) pojawia się **Install Update** — kliknij, a aplikacja zaktualizuje się i uruchomi ponownie. Ręcznie: **Status → Updates → Check for Updates**.

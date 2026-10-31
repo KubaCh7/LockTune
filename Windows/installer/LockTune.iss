@@ -35,6 +35,7 @@ MinVersion=10.0.17763
 
 [Tasks]
 Name: "autostart"; Description: "Start LockTune when I sign in to Windows"
+Name: "playericon"; Description: "Desktop shortcut that opens the LockTune player window"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 
 [Files]
@@ -42,7 +43,9 @@ Source: "{#SourceExe}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\LockTune"; Filename: "{app}\LockTune.exe"
+Name: "{autoprograms}\LockTune Player"; Filename: "{app}\LockTune.exe"; Parameters: "--player"; Comment: "Now playing and lyrics, like on the lock screen"
 Name: "{autodesktop}\LockTune"; Filename: "{app}\LockTune.exe"; Tasks: desktopicon
+Name: "{autodesktop}\LockTune Player"; Filename: "{app}\LockTune.exe"; Parameters: "--player"; Tasks: playericon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "LockTune"; \
@@ -57,3 +60,5 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/im LockTune.exe /f"; Flags: runhid
 [UninstallDelete]
 Type: files; Name: "{app}\LockTune.old.exe"
 Type: files; Name: "{app}\LockTune.new.exe"
+; Made by the app itself ("Add Shortcut to Desktop").
+Type: files; Name: "{autodesktop}\LockTune Player.lnk"

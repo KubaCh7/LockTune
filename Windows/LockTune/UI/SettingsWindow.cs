@@ -402,6 +402,19 @@ public sealed class SettingsWindow : Window
             Toggle("Check for updates automatically", () => settings.AutoCheckUpdates, v => settings.AutoCheckUpdates = v),
             updateRow));
 
+        var shortcutStatus = Caption(PlayerShortcut.OnDesktop ? "“LockTune Player” is on your desktop." : "");
+        shortcutStatus.Visibility = PlayerShortcut.OnDesktop ? Visibility.Visible : Visibility.Collapsed;
+        p.Children.Add(Section("Player window",
+            Caption("The lock screen look in a normal window: nothing gets locked. Move and resize it; F11 or a double click on the background makes it full screen. Start menu → LockTune Player opens it directly."),
+            Buttons(("Open Player Window", () => app.OpenPlayer(), true), ("Add Shortcut to Desktop", () =>
+            {
+                shortcutStatus.Text = PlayerShortcut.AddToDesktop()
+                    ? "Added “LockTune Player” to your desktop: double-click it to open the player."
+                    : "Couldn't create the shortcut.";
+                shortcutStatus.Visibility = Visibility.Visible;
+            }, false)),
+            shortcutStatus));
+
         p.Children.Add(Section("Try it",
             Buttons(("Preview Widget", () => app.TogglePreview(), true), ("Lock Screen Now", () => app.LockNow(), false)),
             Caption("The LockTune icon (♪ with a house) can be hidden under the ^ arrow in the taskbar corner. Open LockTune again from the Start menu to get back to this window.")));

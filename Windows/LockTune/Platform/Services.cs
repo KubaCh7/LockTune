@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -251,5 +252,55 @@ public static class LaunchAtLogin
     public static void Refresh()
     {
         if (IsEnabled) IsEnabled = true;
+    }
+}
+
+/// "LockTune Player" shortcuts (Start menu, desktop) that open the player window.
+public static class PlayerShortcut
+{
+    public const string Name = "LockTune Player";
+
+    public static string StartMenuPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), Name + ".lnk");
+    public static string DesktopPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), Name + ".lnk");
+
+    public static bool OnDesktop => File.Exists(DesktopPath);
+
+    /// The Start menu entry, so it can be found by typing "LockTune Player"
+    /// (the installer makes one too; older installs get it here).
+    public static void EnsureStartMenu()
+    {
+        try
+        {
+            if (!File.Exists(StartMenuPath)) Create(StartMenuPath);
+        }
+        catch (Exception) { }
+    }
+
+    public static bool AddToDesktop()
+    {
+        try
+        {
+            Create(DesktopPath);
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static void Create(string path)
+    {
+        var exe = Environment.ProcessPath;
+        if (exe == null) return;
+        var type = Type.GetTypeFromProgID("WScript.Shell") ?? throw new InvalidOperationException("No WScript.Shell");
+        dynamic shell = Activator.CreateInstance(type)!;
+        dynamic link = shell.CreateShortcut(path);
+        link.TargetPath = exe;
+        link.Arguments = "--player";
+        link.WorkingDirectory = Path.GetDirectoryName(exe);
+        link.IconLocation = exe + ",0";
+        link.Description = "Now playing and lyrics, like on the lock screen";
+        link.Save();
     }
 }

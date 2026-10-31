@@ -180,6 +180,7 @@ public sealed class AppSettings : INotifyPropertyChanged
     private bool autoCheckUpdates = true;
     private bool didShowWelcome;
     private int timingVersion;
+    private string? playerBounds;
 
     public bool HotkeyEnabled { get => hotkeyEnabled; set => Set(ref hotkeyEnabled, value); }
     public uint HotkeyModifiers { get => hotkeyModifiers; set => Set(ref hotkeyModifiers, value, nameof(Hotkey)); }
@@ -246,6 +247,8 @@ public sealed class AppSettings : INotifyPropertyChanged
     public bool DidShowWelcome { get => didShowWelcome; set => Set(ref didShowWelcome, value); }
     /// Bumped when the meaning of the lyrics timing changes (one-time reset).
     public int TimingVersion { get => timingVersion; set => Set(ref timingVersion, value); }
+    /// Where the player window was ("left,top,width,height,max|normal").
+    public string? PlayerBounds { get => playerBounds; set => Set(ref playerBounds, value); }
 
     // Values for the current mode.
     [JsonIgnore] public double ActiveBottomInset => Math.Max(lockWallpaper ? widgetBottomInset : plainBottomInset, MinBottomInset);

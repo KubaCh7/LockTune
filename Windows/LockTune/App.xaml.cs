@@ -11,8 +11,10 @@ public partial class App : Application
 {
     private const string MutexName = "LockTune.Windows.SingleInstance";
     private const string ShowEventName = "LockTune.Windows.ShowSettings";
+    private const string PlayerEventName = "LockTune.Windows.ShowPlayer";
     private Mutex? instanceMutex;
     private EventWaitHandle? showEvent;
+    private EventWaitHandle? playerEvent;
     private AppCoordinator? coordinator;
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -28,12 +30,15 @@ public partial class App : Application
             return;
         }
 
-        // One LockTune at a time: a second launch just opens the settings.
+        // One LockTune at a time: a second launch just opens the settings
+        // (or the player window, from the "LockTune Player" shortcut).
+        bool player = args.Contains("--player");
         instanceMutex = new Mutex(true, MutexName, out bool first);
         showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
+        playerEvent = new EventWaitHandle(false, EventResetMode.AutoReset, PlayerEventName);
         if (!first && !args.Contains("--updated"))
         {
-            showEvent.Set();
+            (player ? playerEvent : showEvent).Set();
             Shutdown();
             return;
         }
@@ -55,10 +60,12 @@ public partial class App : Application
         };
 
         coordinator = new AppCoordinator(AppSettings.Load());
-        coordinator.Start(background: args.Contains("--background"), updated: args.Contains("--updated"));
+        coordinator.Start(background: args.Contains("--background"), updated: args.Contains("--updated"), player: player);
 
         ThreadPool.RegisterWaitForSingleObject(showEvent, (_, _) =>
             Dispatcher.BeginInvoke(() => coordinator?.OpenSettings()), null, Timeout.Infinite, false);
+        ThreadPool.RegisterWaitForSingleObject(playerEvent, (_, _) =>
+            Dispatcher.BeginInvoke(() => coordinator?.OpenPlayer()), null, Timeout.Infinite, false);
 
         if (args.Contains("--preview")) coordinator.TogglePreview();
     }

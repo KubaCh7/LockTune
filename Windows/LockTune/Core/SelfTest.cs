@@ -222,6 +222,39 @@ public static class SelfTest
             host.Close();
         }
 
+        // The player window (lock-screen look in a normal window).
+        {
+            settings.LockWallpaper = false; // the window shows the artwork anyway
+            app.Media.SetTestState(track, art, playing: true, position: 61);
+            var player = new PlayerWindow(app.Media, app.Lyrics, settings, () => false)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual, Left = -10000, Top = -10000, Width = 1280, Height = 760, ShowActivated = false,
+            };
+            player.Open();
+            Wait(1.2);
+            if (player.Content is FrameworkElement body)
+            {
+                var bitmap = Save(body, new Size(body.ActualWidth, body.ActualHeight), Path.Combine(folder, "player-window.png"));
+                check("Render player window", !IsBlank(bitmap), $"{body.ActualWidth:0}x{body.ActualHeight:0}");
+                if (body is LockScreenView pv)
+                {
+                    pv.HandleKey(System.Windows.Input.Key.L);
+                    Wait(1.2);
+                    bitmap = Save(body, new Size(body.ActualWidth, body.ActualHeight), Path.Combine(folder, "player-window-lyrics.png"));
+                    check("Render player window with lyrics", !IsBlank(bitmap), "");
+                }
+            }
+            player.ToggleFullScreen();
+            Wait(0.5);
+            check("Player window full screen", player.WindowState == WindowState.Maximized && player.WindowStyle == WindowStyle.None, "");
+            player.ToggleFullScreen();
+            check("Player window back from full screen", player.WindowStyle == WindowStyle.SingleBorderWindow, "");
+            player.Close();
+            check("Player window hides (kept for next time)", !player.IsVisible, "");
+            settings.PlayerBounds = null;
+            settings.LockWallpaper = true;
+        }
+
         var turntable = new TurntableWindow(app.Media, settings) { Left = -5000, Top = -5000 };
         turntable.Show();
         turntable.UpdateLayout();
